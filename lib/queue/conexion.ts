@@ -1,4 +1,3 @@
-import "server-only";
 import IORedis from "ioredis";
 
 /**

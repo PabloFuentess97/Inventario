@@ -1,4 +1,3 @@
-import "server-only";
 import { Queue, QueueEvents } from "bullmq";
 import { getRedis, NOMBRE_COLA_SYNC } from "./conexion";
 import type { Resultado } from "@/lib/sync-core";
