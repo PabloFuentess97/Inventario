@@ -1,0 +1,132 @@
+# Despliegue completo en un VPS con Docker.
+#
+#   Servicios:
+#     postgres  → base de datos
+#     redis     → cola de sincronización (BullMQ), con persistencia AOF
+#     migrate   → aplica migraciones y siembra (one-shot, se ejecuta y termina)
+#     app       → aplicación Next.js (web + API)
+#     worker    → procesa la cola: aplica a Postgres las operaciones encoladas
+#     caddy     → (perfil "https") proxy inverso con HTTPS automático
+#
+# Puesta en marcha:
+#     cp .env.docker.example .env      # y edita las contraseñas/secreto
+#     docker compose up -d --build
+#
+# Con HTTPS (dominio público):
+#     docker compose --profile https up -d --build
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?define POSTGRES_PASSWORD en .env}
+      POSTGRES_DB: ${POSTGRES_DB:-inventario}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-inventario}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    # appendonly yes → la cola sobrevive a reinicios de Redis: no se pierde
+    # ningún trabajo de sincronización aunque el contenedor se reinicie.
+    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec"]
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  migrate:
+    build: .
+    image: inventario-app
+    command: ["sh", "docker/migrar.sh"]
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-inventario}?schema=public
+      SEED_ON_START: ${SEED_ON_START:-true}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  app:
+    build: .
+    image: inventario-app
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-inventario}?schema=public
+      REDIS_URL: redis://redis:6379
+      AUTH_SECRET: ${AUTH_SECRET:?define AUTH_SECRET en .env}
+      AUTH_URL: ${AUTH_URL:?define AUTH_URL en .env}
+      AUTH_TRUST_HOST: "true"
+      STORAGE_PROVIDER: local
+      UPLOADS_DIR: data/uploads
+      OCR_PROVIDER: tesseract
+      SIMILITUD_UMBRAL: ${SIMILITUD_UMBRAL:-0.40}
+      MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-10}
+    volumes:
+      # Persistencia de las fotos subidas (nunca se pierden entre despliegues)
+      - uploads:/app/data/uploads
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  worker:
+    build: .
+    image: inventario-app
+    restart: unless-stopped
+    command: ["npm", "run", "worker"]
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-inventario}?schema=public
+      REDIS_URL: redis://redis:6379
+      SIMILITUD_UMBRAL: ${SIMILITUD_UMBRAL:-0.40}
+      SYNC_WORKER_CONCURRENCY: ${SYNC_WORKER_CONCURRENCY:-5}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+  # ── HTTPS con Caddy (opcional) ──────────────────────────────────────────────
+  # Actívalo con:  docker compose --profile https up -d
+  # Necesita un dominio apuntando al VPS y los puertos 80/443 abiertos.
+  caddy:
+    image: caddy:2-alpine
+    profiles: ["https"]
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMINIO: ${AUTH_DOMAIN:?define AUTH_DOMAIN en .env para HTTPS}
+    volumes:
+      - ./docker/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddydata:/data
+      - caddyconfig:/config
+    depends_on:
+      - app
+
+volumes:
+  pgdata:
+  redisdata:
+  uploads:
+  caddydata:
+  caddyconfig:

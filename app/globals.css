@@ -1,0 +1,35 @@
+@import "tailwindcss";
+@import "@heroui/styles";
+
+/*
+ * Tema de la aplicación sobre HeroUI v3.
+ * Se sobreescriben las variables semánticas para mantener la identidad
+ * sobria de la app: azul pizarra como color de acción.
+ */
+:root {
+  --accent: oklch(0.45 0.09 250);
+  --accent-hover: oklch(0.41 0.09 250);
+  --accent-soft: oklch(0.94 0.02 250);
+  --accent-soft-hover: oklch(0.91 0.03 250);
+  --accent-soft-foreground: oklch(0.38 0.08 250);
+  --focus: oklch(0.45 0.09 250);
+  --link: oklch(0.45 0.09 250);
+  --radius: 0.625rem;
+}
+
+@layer base {
+  body {
+    /* Evitar zoom accidental con doble toque en móvil */
+    touch-action: manipulation;
+    /* Red de seguridad: ningún elemento debe provocar scroll horizontal */
+    overflow-x: clip;
+  }
+  /* Objetivos táctiles cómodos para uso con una mano y guantes */
+  button,
+  [role="button"],
+  input,
+  select,
+  textarea {
+    min-height: 44px;
+  }
+}

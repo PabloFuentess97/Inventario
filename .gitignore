@@ -1,0 +1,36 @@
+# dependencias
+/node_modules
+
+# next.js
+/.next/
+/out/
+next-env.d.ts
+
+# service worker generado por Serwist
+/public/sw.js
+/public/sw.js.map
+/public/swe-worker*.js
+
+# producción
+/build
+
+# ── entorno / secretos (NUNCA subir) ──────────────────────────────────────────
+.env
+.env.*
+!.env.example
+!.env.docker.example
+
+# fotos subidas (se guardan en un volumen en producción)
+/data/uploads
+
+# assets generados (se regeneran con `npm run iconos` y `npm run ocr:assets`)
+/public/tesseract
+/public/iconos
+
+# entregables generados (presentación y guías PDF)
+/Documentos
+
+# varios
+.DS_Store
+*.tsbuildinfo
+npm-debug.log*

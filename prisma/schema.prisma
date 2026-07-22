@@ -1,0 +1,220 @@
+// Esquema de datos de la aplicación de recuentos físicos de inventario.
+// No existe stock ni catálogo de artículos: todo nace del recuento físico.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Rol {
+  OPERARIO
+  OFICINISTA
+  ADMIN
+}
+
+enum EstadoRecuento {
+  EN_PROGRESO
+  FINALIZADO
+}
+
+enum EstadoLinea {
+  ACTIVA
+  ANULADA
+}
+
+enum EstadoIncidencia {
+  ABIERTA
+  RESUELTA
+}
+
+enum EstadoGrupoSimilitud {
+  PENDIENTE
+  UNIFICADO
+  SEPARADO
+}
+
+model Usuario {
+  id           String   @id @default(uuid())
+  nombre       String
+  /// Identificador de trabajador (Número de Boletín Interno). Se usa en la firma.
+  nbi          String   @unique
+  email        String   @unique
+  passwordHash String
+  rol          Rol
+  activo       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  recuentos            Recuento[]
+  incidenciasAbiertas  Incidencia[] @relation("IncidenciaAbiertaPor")
+  incidenciasResueltas Incidencia[] @relation("IncidenciaResueltaPor")
+
+  @@map("usuarios")
+}
+
+model Almacen {
+  id          String  @id @default(uuid())
+  nombre      String
+  descripcion String?
+
+  estancias Estancia[]
+
+  @@map("almacenes")
+}
+
+/// Zona / sala / pasillo dentro del almacén.
+model Estancia {
+  id        String  @id @default(uuid())
+  almacenId String
+  codigo    String
+  nombre    String
+
+  almacen     Almacen      @relation(fields: [almacenId], references: [id], onDelete: Cascade)
+  estanterias Estanteria[]
+
+  @@unique([almacenId, codigo])
+  @@map("estancias")
+}
+
+model Estanteria {
+  id          String  @id @default(uuid())
+  estanciaId  String
+  codigo      String
+  descripcion String?
+
+  estancia    Estancia    @relation(fields: [estanciaId], references: [id], onDelete: Cascade)
+  ubicaciones Ubicacion[]
+
+  @@unique([estanciaId, codigo])
+  @@map("estanterias")
+}
+
+/// Posición concreta dentro de una estantería. Unidad mínima donde se cuenta.
+model Ubicacion {
+  id           String  @id @default(uuid())
+  estanteriaId String
+  codigo       String
+  nivel        Int?
+  hueco        Int?
+  descripcion  String?
+
+  estanteria Estanteria @relation(fields: [estanteriaId], references: [id], onDelete: Cascade)
+  recuentos  Recuento[]
+
+  @@unique([estanteriaId, codigo])
+  @@index([codigo])
+  @@map("ubicaciones")
+}
+
+/// Sesión de conteo de un operario sobre una ubicación.
+/// Un índice único parcial (en la migración) garantiza un solo recuento
+/// EN_PROGRESO por ubicación: es el bloqueo entre operarios.
+model Recuento {
+  id           String         @id
+  ubicacionId  String
+  operarioId   String
+  estado       EstadoRecuento @default(EN_PROGRESO)
+  iniciadoEn   DateTime       @default(now())
+  finalizadoEn DateTime?
+  firmaNombre  String?
+  firmaNbi     String?
+
+  ubicacion Ubicacion       @relation(fields: [ubicacionId], references: [id])
+  operario  Usuario         @relation(fields: [operarioId], references: [id])
+  lineas    LineaRecuento[]
+
+  @@index([ubicacionId])
+  @@index([operarioId])
+  @@index([estado])
+  @@map("recuentos")
+}
+
+/// Cada artículo / caja / pallet contado dentro de un recuento.
+/// El id lo genera el cliente (UUID) para que la sincronización offline
+/// sea idempotente: reenviar la misma línea nunca duplica.
+model LineaRecuento {
+  id                  String      @id
+  recuentoId          String
+  descripcionArticulo String      @default("")
+  cantidad            Decimal     @default(0) @db.Decimal(14, 3)
+  unidadMedidaId      String?
+  /// Texto crudo devuelto por el OCR de la etiqueta, sin editar.
+  textoOcr            String?
+  fotoEtiquetaUrl     String?
+  esIncidencia        Boolean     @default(false)
+  estado              EstadoLinea @default(ACTIVA)
+  createdAt           DateTime    @default(now())
+  /// Marca de tiempo del cliente para resolución de conflictos last-write-wins.
+  updatedAt           DateTime    @default(now())
+
+  recuento     Recuento             @relation(fields: [recuentoId], references: [id], onDelete: Cascade)
+  unidadMedida UnidadMedida?        @relation(fields: [unidadMedidaId], references: [id])
+  incidencia   Incidencia?
+  grupos       GrupoSimilitudLinea[]
+
+  @@index([recuentoId])
+  @@map("lineas_recuento")
+}
+
+/// Catálogo editable de unidades de medida.
+model UnidadMedida {
+  id     String  @id @default(uuid())
+  codigo String  @unique
+  nombre String
+  activa Boolean @default(true)
+
+  lineas LineaRecuento[]
+
+  @@map("unidades_medida")
+}
+
+/// Una incidencia siempre está ligada a una línea contada: la línea ya lleva
+/// ubicación, cantidad y unidad, de modo que al resolverla la oficina solo
+/// tiene que indicar qué es y la línea pasa a ser un conteo normal.
+model Incidencia {
+  id                    String           @id
+  lineaRecuentoId       String           @unique
+  abiertaPorId          String
+  estado                EstadoIncidencia @default(ABIERTA)
+  fotoUrl               String?
+  notaOperario          String?
+  resueltaPorId         String?
+  descripcionResolucion String?
+  resueltaEn            DateTime?
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @default(now())
+
+  linea       LineaRecuento @relation(fields: [lineaRecuentoId], references: [id], onDelete: Cascade)
+  abiertaPor  Usuario       @relation("IncidenciaAbiertaPor", fields: [abiertaPorId], references: [id])
+  resueltaPor Usuario?      @relation("IncidenciaResueltaPor", fields: [resueltaPorId], references: [id])
+
+  @@index([estado])
+  @@map("incidencias")
+}
+
+/// Agrupación sugerida de líneas con descripciones parecidas (pg_trgm).
+model GrupoSimilitud {
+  id                  String               @id @default(uuid())
+  descripcionCanonica String?
+  estado              EstadoGrupoSimilitud @default(PENDIENTE)
+  createdAt           DateTime             @default(now())
+
+  lineas GrupoSimilitudLinea[]
+
+  @@index([estado])
+  @@map("grupos_similitud")
+}
+
+model GrupoSimilitudLinea {
+  grupoId String
+  lineaId String
+
+  grupo GrupoSimilitud @relation(fields: [grupoId], references: [id], onDelete: Cascade)
+  linea LineaRecuento  @relation(fields: [lineaId], references: [id], onDelete: Cascade)
+
+  @@id([grupoId, lineaId])
+  @@map("grupos_similitud_lineas")
+}
