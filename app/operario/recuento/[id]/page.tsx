@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useLiveQuery } from "dexie-react-hooks";
 import { AlertTriangle, CheckCircle2, MapPin, Plus } from "lucide-react";
@@ -35,6 +35,23 @@ export default function PaginaRecuento() {
 
   const [lineaIncidencia, setLineaIncidencia] = useState<LineaLocal | null>(null);
   const [finalizando, setFinalizando] = useState(false);
+
+  // Precalienta el OCR en segundo plano (cuando el navegador esté ocioso) para
+  // que la primera foto no espere a que cargue el motor.
+  useEffect(() => {
+    const idle =
+      typeof window !== "undefined" && "requestIdleCallback" in window
+        ? window.requestIdleCallback
+        : (cb: () => void) => setTimeout(cb, 800);
+    let cancelado = false;
+    idle(() => {
+      if (cancelado) return;
+      void import("@/lib/ocr").then((m) => m.getOcr().precalentar?.());
+    });
+    return () => {
+      cancelado = true;
+    };
+  }, []);
 
   if (recuento === undefined) {
     return (

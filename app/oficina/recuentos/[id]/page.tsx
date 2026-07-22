@@ -155,6 +155,8 @@ export default function PaginaDetalleRecuento({ params }: { params: Promise<{ id
                             <img
                               src={l.fotoEtiquetaUrl}
                               alt="Etiqueta"
+                              loading="lazy"
+                              decoding="async"
                               className="h-12 w-12 rounded-md border object-cover"
                             />
                           </a>

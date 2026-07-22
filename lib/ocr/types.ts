@@ -15,4 +15,9 @@ export interface ResultadoOcr {
 export interface OcrProvider {
   /** Reconoce el texto de una imagen de etiqueta. */
   reconocer(imagen: Blob): Promise<ResultadoOcr>;
+  /**
+   * Inicializa el motor por adelantado (opcional). Llamarlo al entrar en el
+   * recuento evita que la primera foto espere a que cargue el WASM.
+   */
+  precalentar?(): void;
 }

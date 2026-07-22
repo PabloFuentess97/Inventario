@@ -122,6 +122,8 @@ export default function PaginaIncidencias() {
                     <img
                       src={inc.fotoUrl ?? inc.linea.fotoEtiquetaUrl ?? ""}
                       alt="Foto de la incidencia"
+                      loading="lazy"
+                      decoding="async"
                       className="h-44 w-full rounded-lg border object-cover sm:h-28 sm:w-28"
                     />
                   </a>

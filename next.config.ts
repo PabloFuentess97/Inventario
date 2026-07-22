@@ -11,12 +11,17 @@ const withSerwist = withSerwistInit({
 });
 
 const nextConfig: NextConfig = {
+  // Cabecera innecesaria menos por respuesta
+  poweredByHeader: false,
   // Las fotos se sirven desde el sistema de archivos vía route handler,
   // no hace falta configurar dominios de imágenes remotas.
   experimental: {
     serverActions: {
       bodySizeLimit: "10mb",
     },
+    // Tree-shaking más agresivo de librerías con muchos exports: reduce el JS
+    // que el móvil descarga y parsea.
+    optimizePackageImports: ["@heroui/react", "lucide-react", "@tanstack/react-query"],
   },
 };
 

@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { AlertTriangle, Camera } from "lucide-react";
 import { Button, Label, Modal, TextArea, TextField } from "@heroui/react";
 import { toast } from "@/lib/toast";
+import { comprimirImagen } from "@/lib/imagen";
 import type { LineaLocal } from "@/lib/offline/db-local";
 import { abrirIncidencia } from "@/lib/offline/operaciones";
 
@@ -20,7 +21,7 @@ export function DialogoIncidencia({
   onCerrar: () => void;
 }) {
   const [nota, setNota] = useState("");
-  const [foto, setFoto] = useState<File | null>(null);
+  const [foto, setFoto] = useState<Blob | null>(null);
   const [guardando, setGuardando] = useState(false);
   const inputFotoRef = useRef<HTMLInputElement>(null);
 
@@ -85,10 +86,11 @@ export function DialogoIncidencia({
                   accept="image/*"
                   capture="environment"
                   className="hidden"
-                  onChange={(e) => {
+                  onChange={async (e) => {
                     const archivo = e.target.files?.[0];
-                    if (archivo) setFoto(archivo);
                     e.target.value = "";
+                    // Comprimir/reorientar antes de guardar (sube más rápido)
+                    if (archivo) setFoto(await comprimirImagen(archivo));
                   }}
                 />
               </div>

@@ -42,6 +42,11 @@ export class TesseractOcrProvider implements OcrProvider {
     return this.workerPromise;
   }
 
+  /** Inicia la carga del motor en segundo plano (sin bloquear la UI). */
+  precalentar(): void {
+    void this.getWorker();
+  }
+
   async reconocer(imagen: Blob): Promise<ResultadoOcr> {
     const worker = await this.getWorker();
     // Preprocesado: clave para que el OCR no devuelva basura en fotos de móvil.

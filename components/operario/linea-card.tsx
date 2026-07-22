@@ -6,6 +6,7 @@ import { Button, Card, Chip, Input, Label, TextArea, TextField } from "@heroui/r
 import { toast } from "@/lib/toast";
 import { CampoSelect } from "@/components/campo-select";
 import { FotoBlob } from "@/components/foto-blob";
+import { comprimirImagen } from "@/lib/imagen";
 import { getOcr } from "@/lib/ocr";
 import type { LineaLocal, UnidadLocal } from "@/lib/offline/db-local";
 import { actualizarLinea, anularLinea, guardarFotoLinea } from "@/lib/offline/operaciones";
@@ -43,13 +44,16 @@ export function LineaCard({
   });
 
   async function alCapturarFoto(archivo: File) {
+    // 0) Comprimir/reorientar: sube y sincroniza mucho más rápido y ocupa menos
+    const foto = await comprimirImagen(archivo);
+
     // 1) Guardar SIEMPRE la foto en local primero: sin cobertura no se pierde
-    await guardarFotoLinea(linea.id, archivo);
+    await guardarFotoLinea(linea.id, foto);
 
     // 2) OCR en el dispositivo (tesseract.js, disponible offline)
     setOcrEnCurso(true);
     try {
-      const resultado = await getOcr().reconocer(archivo);
+      const resultado = await getOcr().reconocer(foto);
       const cambios: Partial<LineaLocal> = { textoOcr: resultado.texto };
       // El texto OCR precarga la descripción solo si el operario no escribió nada
       if (!descripcion.trim() && resultado.texto) {

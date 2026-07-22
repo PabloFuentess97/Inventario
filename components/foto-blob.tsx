@@ -54,5 +54,7 @@ export function FotoBlob({
   }
 
   // eslint-disable-next-line @next/next/no-img-element — blobs locales no pasan por next/image
-  return <img src={src} alt={alt} className={cn("object-cover", className)} />;
+  return (
+    <img src={src} alt={alt} decoding="async" className={cn("object-cover", className)} />
+  );
 }
