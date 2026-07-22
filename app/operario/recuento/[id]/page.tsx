@@ -3,13 +3,14 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useLiveQuery } from "dexie-react-hooks";
-import { AlertTriangle, CheckCircle2, MapPin, Plus } from "lucide-react";
+import { AlertTriangle, CheckCircle2, MapPin, Plus, RotateCcw } from "lucide-react";
 import { Button, Card, Chip, Skeleton } from "@heroui/react";
+import { toast } from "@/lib/toast";
 import { LineaCard } from "@/components/operario/linea-card";
 import { DialogoIncidencia } from "@/components/operario/dialogo-incidencia";
 import { DialogoFinalizar } from "@/components/operario/dialogo-finalizar";
 import { dbLocal, type LineaLocal } from "@/lib/offline/db-local";
-import { crearLinea } from "@/lib/offline/operaciones";
+import { crearLinea, reabrirRecuento } from "@/lib/offline/operaciones";
 
 /**
  * Pantalla de recuento de una ubicación. Flujo por artículo:
@@ -106,12 +107,26 @@ export default function PaginaRecuento() {
       )}
 
       {finalizado && (
-        <div className="flex items-start gap-2 rounded-lg border border-success/40 bg-success-soft p-3 text-sm text-success-soft-foreground">
-          <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
-          <p>
-            Recuento finalizado y firmado por {recuento.firmaNombre} (NBI {recuento.firmaNbi}).
-            Solo la oficina puede reabrirlo.
-          </p>
+        <div className="flex flex-col gap-3 rounded-lg border border-success/40 bg-success-soft p-3 text-sm text-success-soft-foreground">
+          <div className="flex items-start gap-2">
+            <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
+            <p>
+              Recuento finalizado y firmado por {recuento.firmaNombre} (NBI {recuento.firmaNbi}).
+              Puedes ver lo contado o reabrirlo para volver a contar.
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="self-start"
+            onPress={async () => {
+              await reabrirRecuento(recuento.id);
+              toast.success("Recuento reabierto: ya puedes volver a contar");
+            }}
+          >
+            <RotateCcw className="h-4 w-4" />
+            Reabrir y volver a contar
+          </Button>
         </div>
       )}
 

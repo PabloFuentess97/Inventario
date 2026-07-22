@@ -23,6 +23,7 @@ export const TIPOS_OPERACION = [
   "upsert_linea",
   "upsert_incidencia",
   "finalizar_recuento",
+  "reabrir_recuento",
 ] as const;
 
 export type TipoOperacion = (typeof TIPOS_OPERACION)[number];
@@ -73,6 +74,11 @@ const finalizarRecuentoSchema = z.object({
   firmaNombre: z.string().min(1).max(200),
   firmaNbi: z.string().min(1).max(50),
   finalizadoEn: z.string().datetime(),
+});
+
+const reabrirRecuentoSchema = z.object({
+  id: z.string().uuid(),
+  reabiertoEn: z.string().datetime(),
 });
 
 /**
@@ -233,6 +239,47 @@ export async function procesarOperacion(
         },
       });
       return { opId, ok: true };
+    }
+
+    case "reabrir_recuento": {
+      const datos = reabrirRecuentoSchema.parse(payload);
+
+      const recuento = await prisma.recuento.findUnique({ where: { id: datos.id } });
+      if (!recuento) {
+        return { opId, ok: false, codigo: "RECHAZADA", error: "El recuento no existe en el servidor" };
+      }
+      if (recuento.operarioId !== operarioId) {
+        return { opId, ok: false, codigo: "RECHAZADA", error: "El recuento pertenece a otro operario" };
+      }
+      if (recuento.estado === "EN_PROGRESO") {
+        return { opId, ok: true, codigo: "YA_APLICADA" };
+      }
+
+      // No se puede reabrir si otro recuento ya está EN_PROGRESO en la ubicación
+      const ocupada = await prisma.recuento.findFirst({
+        where: { ubicacionId: recuento.ubicacionId, estado: "EN_PROGRESO", id: { not: datos.id } },
+      });
+      if (ocupada) {
+        return {
+          opId,
+          ok: false,
+          codigo: "UBICACION_OCUPADA",
+          error: "Otro operario está contando ya en esta ubicación",
+        };
+      }
+
+      try {
+        await prisma.recuento.update({
+          where: { id: datos.id },
+          data: { estado: "EN_PROGRESO", finalizadoEn: null, firmaNombre: null, firmaNbi: null },
+        });
+        return { opId, ok: true };
+      } catch (error) {
+        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+          return { opId, ok: false, codigo: "UBICACION_OCUPADA", error: "Ubicación ocupada" };
+        }
+        throw error;
+      }
     }
 
     default:

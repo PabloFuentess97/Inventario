@@ -3,7 +3,12 @@ import { prisma } from "@/lib/prisma";
 import { getStorage } from "@/lib/storage";
 import { ApiError, conManejadorErrores, requireSesion } from "@/lib/api";
 
-const TIPOS_PERMITIDOS = new Set(["image/jpeg", "image/png", "image/webp"]);
+// El cliente siempre comprime a JPEG antes de subir. Se aceptan además otros
+// formatos de imagen por robustez (tipo vacío en algunos navegadores, etc.);
+// lo importante es no rechazar una subida válida y dejar la foto atascada.
+function esImagenAceptable(tipo: string): boolean {
+  return tipo === "" || tipo.startsWith("image/");
+}
 
 /**
  * Subida de fotos (etiquetas e incidencias), en diferido desde el outbox.
@@ -29,8 +34,8 @@ export const POST = conManejadorErrores(async (peticion: Request) => {
   if (archivo.size > maxMb * 1024 * 1024) {
     throw new ApiError(413, `La imagen supera el máximo de ${maxMb} MB`);
   }
-  if (!TIPOS_PERMITIDOS.has(archivo.type)) {
-    throw new ApiError(415, "Formato de imagen no permitido (usa JPG, PNG o WebP)");
+  if (!esImagenAceptable(archivo.type)) {
+    throw new ApiError(415, "El archivo no es una imagen");
   }
 
   const buffer = Buffer.from(await archivo.arrayBuffer());

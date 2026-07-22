@@ -27,7 +27,9 @@ export class LocalStorageProvider implements StorageProvider {
   }
 
   async guardar(buffer: Buffer, nombreArchivo: string, contentType: string): Promise<string> {
-    const extension = TIPOS_EXTENSION[contentType] ?? ".bin";
+    // El cliente sube siempre JPEG; ante un tipo desconocido asumimos .jpg para
+    // que la oficina pueda mostrar la imagen (nunca .bin, que no se ve).
+    const extension = TIPOS_EXTENSION[contentType] ?? ".jpg";
     // Subcarpeta por fecha para no acumular miles de archivos en un directorio
     const fecha = new Date();
     const subcarpeta = `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, "0")}`;

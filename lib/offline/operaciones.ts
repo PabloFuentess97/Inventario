@@ -208,3 +208,24 @@ export async function finalizarRecuento(
     finalizadoEn: ahora,
   });
 }
+
+/**
+ * Reabre un recuento finalizado para volver a contar. Vuelve a poner la
+ * ubicación como ocupada por este operario y encola la operación; el servidor
+ * la valida (no se puede reabrir si otro operario ya cuenta esa ubicación).
+ */
+export async function reabrirRecuento(recuentoId: string): Promise<void> {
+  const ahora = new Date().toISOString();
+  const recuento = await dbLocal.recuentos.get(recuentoId);
+  await dbLocal.recuentos.update(recuentoId, {
+    estado: "EN_PROGRESO",
+    finalizadoEn: null,
+    firmaNombre: null,
+    firmaNbi: null,
+    conflicto: false,
+  });
+  if (recuento) {
+    await dbLocal.ubicaciones.update(recuento.ubicacionId, { ocupada: true });
+  }
+  await syncManager.encolar("reabrir_recuento", { id: recuentoId, reabiertoEn: ahora });
+}

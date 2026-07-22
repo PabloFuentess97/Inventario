@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useLiveQuery } from "dexie-react-hooks";
-import { ChevronRight, Lock, MapPin, PlayCircle, RefreshCw, Search } from "lucide-react";
+import { CheckCircle2, ChevronRight, Lock, MapPin, PlayCircle, RefreshCw, Search } from "lucide-react";
 import { Button, Card, Chip, Input } from "@heroui/react";
 import { toast } from "@/lib/toast";
 import { dbLocal, type UbicacionLocal } from "@/lib/offline/db-local";
@@ -26,6 +26,11 @@ export default function PaginaOperario() {
   const recuentosEnCurso =
     useLiveQuery(
       () => dbLocal.recuentos.where("estado").equals("EN_PROGRESO").reverse().sortBy("iniciadoEn"),
+      []
+    ) ?? [];
+  const recuentosFinalizados =
+    useLiveQuery(
+      () => dbLocal.recuentos.where("estado").equals("FINALIZADO").reverse().sortBy("finalizadoEn"),
       []
     ) ?? [];
 
@@ -63,13 +68,20 @@ export default function PaginaOperario() {
 
   async function empezar(ubicacion: UbicacionLocal) {
     if (iniciando) return;
-    if (ubicacion.ocupada) {
-      toast.warning("Otro operario está contando en esa ubicación");
+    // Si ya hay un recuento local para esta ubicación (en curso o finalizado),
+    // se abre ese en vez de crear uno nuevo (evita contar dos veces).
+    const enCurso = recuentosEnCurso.find((r) => r.ubicacionId === ubicacion.id);
+    if (enCurso) {
+      router.push(`/operario/recuento/${enCurso.id}`);
       return;
     }
-    const existente = recuentosEnCurso.find((r) => r.ubicacionId === ubicacion.id);
-    if (existente) {
-      router.push(`/operario/recuento/${existente.id}`);
+    const finalizado = recuentosFinalizados.find((r) => r.ubicacionId === ubicacion.id);
+    if (finalizado) {
+      router.push(`/operario/recuento/${finalizado.id}`);
+      return;
+    }
+    if (ubicacion.ocupada) {
+      toast.warning("Otro operario está contando en esa ubicación");
       return;
     }
     setIniciando(true);
@@ -237,6 +249,31 @@ export default function PaginaOperario() {
         <p className="py-6 text-center text-sm text-muted">
           Ninguna ubicación coincide con «{busqueda}»
         </p>
+      )}
+
+      {/* Ubicaciones que ya has contado: verlas o reabrirlas para recontar */}
+      {!busqueda.trim() && !estanciaSel && recuentosFinalizados.length > 0 && (
+        <section className="flex flex-col gap-2">
+          <h2 className="text-sm font-semibold text-muted">Ubicaciones contadas</h2>
+          {recuentosFinalizados.map((r) => (
+            <Card
+              key={r.id}
+              role="button"
+              tabIndex={0}
+              className="cursor-pointer transition-colors active:bg-surface-hover"
+              onClick={() => router.push(`/operario/recuento/${r.id}`)}
+            >
+              <Card.Content className="flex flex-row items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="line-clamp-1 font-semibold">{r.ubicacionCodigo}</p>
+                  <p className="line-clamp-1 text-sm text-muted">{r.ruta}</p>
+                  <p className="text-xs text-muted">Contada {formatearFecha(r.finalizadoEn)}</p>
+                </div>
+                <CheckCircle2 className="h-6 w-6 shrink-0 text-success" />
+              </Card.Content>
+            </Card>
+          ))}
+        </section>
       )}
     </div>
   );

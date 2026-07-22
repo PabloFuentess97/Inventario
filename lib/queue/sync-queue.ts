@@ -42,7 +42,9 @@ export function getColaSync(): Queue<DatosTrabajoSync, Resultado> {
 
 export function getEventosCola(): QueueEvents {
   if (!eventos) {
-    eventos = new QueueEvents(NOMBRE_COLA_SYNC, { connection: getRedis() });
+    // Conexión DEDICADA: QueueEvents hace lecturas bloqueantes (XREAD BLOCK) y
+    // no debe compartir conexión con la Queue, o waitUntilFinished se cuelga.
+    eventos = new QueueEvents(NOMBRE_COLA_SYNC, { connection: getRedis().duplicate() });
   }
   return eventos;
 }

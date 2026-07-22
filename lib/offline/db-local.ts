@@ -98,7 +98,8 @@ export interface OperacionOutbox {
     | "iniciar_recuento"
     | "upsert_linea"
     | "upsert_incidencia"
-    | "finalizar_recuento";
+    | "finalizar_recuento"
+    | "reabrir_recuento";
   payload: Record<string, unknown>;
   createdAt: string;
   intentos: number;
