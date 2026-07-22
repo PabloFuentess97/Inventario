@@ -18,6 +18,7 @@ export default auth((req) => {
   const esPublica =
     pathname === "/login" ||
     pathname.startsWith("/api/auth") ||
+    pathname === "/api/health" ||
     pathname === "/manifest.webmanifest" ||
     pathname === "/sw.js" ||
     pathname.startsWith("/iconos") ||
