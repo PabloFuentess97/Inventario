@@ -8,16 +8,44 @@ import sharp from "sharp";
 
 const DIR = path.resolve(process.cwd(), "public", "iconos");
 
-// Icono: portapapeles con marca de verificación sobre fondo azul pizarra
+// Colores del logotipo de referencia
+const AZUL = "#34519b"; // flechas convergentes
+const ROJO = "#c4193c"; // círculo central
+const BLANCO = "#ffffff";
+
+/**
+ * Icono: mezcla del logotipo de referencia (cuatro flechas azules convergentes
+ * + círculo rojo) con un icono de almacén. En el centro, sobre el círculo rojo,
+ * una nave con puerta de persiana en blanco. Ambos elementos quedan legibles.
+ */
 const svg = (margen: number) => `
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="${margen > 0 ? 0 : 96}" fill="#3d5a80"/>
+  <rect width="512" height="512" rx="${margen > 0 ? 0 : 96}" fill="${BLANCO}"/>
   <g transform="translate(${margen}, ${margen}) scale(${(512 - margen * 2) / 512})">
-    <rect x="136" y="96" width="240" height="336" rx="28" fill="#f7f7f5"/>
-    <rect x="196" y="64" width="120" height="64" rx="20" fill="#e8ecf1"/>
-    <rect x="196" y="64" width="120" height="64" rx="20" fill="none" stroke="#293241" stroke-width="10"/>
-    <rect x="136" y="96" width="240" height="336" rx="28" fill="none" stroke="#293241" stroke-width="12"/>
-    <path d="M 190 270 L 240 330 L 330 200" fill="none" stroke="#3d5a80" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"/>
+    <!-- Cuatro flechas azules convergentes (N, S, E, O) con lados cóncavos,
+         como el logotipo de referencia: el hueco entre ellas dibuja un círculo -->
+    <g fill="${AZUL}">
+      <path d="M 150,44 L 362,44 Q 300,150 256,150 Q 212,150 150,44 Z"/>
+      <path d="M 150,468 L 362,468 Q 300,362 256,362 Q 212,362 150,468 Z"/>
+      <path d="M 44,150 L 44,362 Q 150,300 150,256 Q 150,212 44,150 Z"/>
+      <path d="M 468,150 L 468,362 Q 362,300 362,256 Q 362,212 468,150 Z"/>
+    </g>
+
+    <!-- Círculo rojo central -->
+    <circle cx="256" cy="256" r="66" fill="${ROJO}"/>
+
+    <!-- Almacén en blanco sobre el círculo (tejado a dos aguas + nave) -->
+    <g fill="${BLANCO}">
+      <polygon points="256,214 302,252 210,252"/>
+      <rect x="222" y="250" width="68" height="50" rx="4"/>
+    </g>
+
+    <!-- Puerta de persiana (hueco rojo con listones blancos) -->
+    <rect x="242" y="266" width="28" height="34" rx="4" fill="${ROJO}"/>
+    <g stroke="${BLANCO}" stroke-width="3">
+      <line x1="242" y1="277" x2="270" y2="277"/>
+      <line x1="242" y1="286" x2="270" y2="286"/>
+    </g>
   </g>
 </svg>`;
 
