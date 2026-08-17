@@ -99,7 +99,7 @@ async function main() {
   comprobar(recuento?.lineas.length === 3, "Las 3 líneas se guardaron (ninguna perdida)");
   comprobar(recuento?.estado === "FINALIZADO", "El recuento queda finalizado y firmado");
   comprobar(
-    recuento?.lineas.some((l) => l.incidencia !== null),
+    recuento?.lineas.some((l) => l.incidencia !== null) ?? false,
     "La incidencia quedó ligada a su línea"
   );
 

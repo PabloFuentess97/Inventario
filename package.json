@@ -13,7 +13,8 @@
     "db:generate": "prisma generate",
     "iconos": "tsx scripts/generar-iconos.ts",
     "ocr:assets": "tsx scripts/copiar-assets-ocr.ts",
-    "worker": "tsx worker/sync-worker.ts"
+    "worker": "tsx worker/sync-worker.ts",
+    "verificar": "tsc --noEmit && next build"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
