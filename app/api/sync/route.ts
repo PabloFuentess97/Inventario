@@ -20,11 +20,17 @@ import { COLA_ACTIVA } from "@/lib/queue/conexion";
  *    terminal); el cliente reintenta el mismo opId, que por idempotencia no
  *    duplica y acaba recibiendo el resultado ya calculado.
  *
+ * Las operaciones del lote se procesan SIEMPRE EN SERIE, respetando el orden
+ * FIFO del outbox: una línea nunca debe intentar aplicarse antes que su
+ * recuento (si no, el servidor la rechazaría y el cliente la descartaría).
+ *
  * Sin Redis (desarrollo local), se aplica directamente contra la base de datos.
  */
 
 // Tiempo máximo que la API espera a que el worker procese cada operación.
 const ESPERA_MS = 15_000;
+
+type OperacionEntrante = { opId: string; tipo: string; payload: Record<string, unknown> };
 
 export const POST = conManejadorErrores(async (peticion: Request) => {
   const sesion = await requireSesion(["OPERARIO"]);
@@ -41,7 +47,7 @@ export const POST = conManejadorErrores(async (peticion: Request) => {
 
 /** Camino con Redis: encola y espera el resultado del worker (durable). */
 async function procesarConCola(
-  operaciones: { opId: string; tipo: string; payload: Record<string, unknown> }[],
+  operaciones: OperacionEntrante[],
   operarioId: string
 ): Promise<Resultado[]> {
   // Import diferido: solo se carga BullMQ cuando la cola está activa.
@@ -49,49 +55,53 @@ async function procesarConCola(
   const cola = getColaSync();
   const eventos = getEventosCola();
 
-  return Promise.all(
-    operaciones.map(async (op): Promise<Resultado> => {
-      try {
-        const existente = await cola.getJob(op.opId);
-        if (existente) {
-          const estado = await existente.getState();
-          // Ya procesado (reintento del cliente): devolvemos el resultado guardado.
-          if (estado === "completed" && existente.returnvalue) {
-            return existente.returnvalue as Resultado;
-          }
-          // Se quedó fallado (p. ej. la BD estuvo caída): al reenviarlo el
-          // cliente, lo reintentamos en vez de dejarlo atascado.
-          if (estado === "failed") await existente.retry();
-          return (await existente.waitUntilFinished(eventos, ESPERA_MS)) as Resultado;
-        }
+  const resultados: Resultado[] = [];
 
-        const trabajo = await cola.add(
-          op.tipo,
-          { opId: op.opId, tipo: op.tipo, payload: op.payload, operarioId },
-          { jobId: op.opId }
-        );
-        // Espera al worker con límite. Si expira, el trabajo sigue en la cola.
-        return (await trabajo.waitUntilFinished(eventos, ESPERA_MS)) as Resultado;
-      } catch (error) {
-        // Timeout o fallo transitorio: los datos están a salvo en Redis y el
-        // cliente reintentará el mismo opId sin duplicar nada.
-        const mensaje = error instanceof Error ? error.message : "Error desconocido";
-        const esTimeout = /timed out|timeout/i.test(mensaje);
-        return {
-          opId: op.opId,
-          ok: false,
-          error: esTimeout
-            ? "En cola, se está sincronizando; se reintentará"
-            : "Error temporal, se reintentará",
-        };
+  for (const op of operaciones) {
+    try {
+      const existente = await cola.getJob(op.opId);
+      if (existente) {
+        const estado = await existente.getState();
+        // Ya procesado (reintento del cliente): devolvemos el resultado guardado.
+        if (estado === "completed" && existente.returnvalue) {
+          resultados.push(existente.returnvalue as Resultado);
+          continue;
+        }
+        // Se quedó fallado (p. ej. la BD estuvo caída): al reenviarlo el
+        // cliente, lo reintentamos en vez de dejarlo atascado.
+        if (estado === "failed") await existente.retry();
+        resultados.push((await existente.waitUntilFinished(eventos, ESPERA_MS)) as Resultado);
+        continue;
       }
-    })
-  );
+
+      const trabajo = await cola.add(
+        op.tipo,
+        { opId: op.opId, tipo: op.tipo, payload: op.payload, operarioId },
+        { jobId: op.opId }
+      );
+      // Espera al worker con límite. Si expira, el trabajo sigue en la cola.
+      resultados.push((await trabajo.waitUntilFinished(eventos, ESPERA_MS)) as Resultado);
+    } catch (error) {
+      // Timeout o fallo transitorio: los datos están a salvo en Redis y el
+      // cliente reintentará el mismo opId sin duplicar nada.
+      const mensaje = error instanceof Error ? error.message : "Error desconocido";
+      const esTimeout = /timed out|timeout/i.test(mensaje);
+      resultados.push({
+        opId: op.opId,
+        ok: false,
+        error: esTimeout
+          ? "En cola, se está sincronizando; se reintentará"
+          : "Error temporal, se reintentará",
+      });
+    }
+  }
+
+  return resultados;
 }
 
 /** Camino sin Redis (desarrollo): aplica en el proceso web, en orden FIFO. */
 async function procesarDirecto(
-  operaciones: { opId: string; tipo: string; payload: Record<string, unknown> }[],
+  operaciones: OperacionEntrante[],
   operarioId: string
 ): Promise<Resultado[]> {
   const resultados: Resultado[] = [];

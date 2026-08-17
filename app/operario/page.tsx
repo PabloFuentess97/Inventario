@@ -21,6 +21,7 @@ export default function PaginaOperario() {
   const [estanciaSel, setEstanciaSel] = useState<string | null>(null);
   const [estanteriaSel, setEstanteriaSel] = useState<string | null>(null);
   const [iniciando, setIniciando] = useState(false);
+  const [actualizando, setActualizando] = useState(false);
 
   const ubicaciones = useLiveQuery(() => dbLocal.ubicaciones.toArray(), []) ?? [];
   const recuentosEnCurso =
@@ -127,7 +128,29 @@ export default function PaginaOperario() {
 
       {/* Búsqueda por código */}
       <section className="flex flex-col gap-2">
-        <h2 className="text-sm font-semibold text-muted">¿Dónde vas a contar?</h2>
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold text-muted">¿Dónde vas a contar?</h2>
+          {/* Actualizar manualmente si la oficina acaba de crear estructura */}
+          <Button
+            variant="ghost"
+            size="sm"
+            isDisabled={actualizando}
+            onPress={async () => {
+              setActualizando(true);
+              try {
+                const ok = await precargarEstructura();
+                toast[ok ? "success" : "warning"](
+                  ok ? "Estructura actualizada" : "Sin conexión: se actualizará al recuperarla"
+                );
+              } finally {
+                setActualizando(false);
+              }
+            }}
+          >
+            <RefreshCw className={`h-4 w-4 ${actualizando ? "animate-spin" : ""}`} />
+            Actualizar
+          </Button>
+        </div>
         <div className="relative">
           <Search className="pointer-events-none absolute left-3 top-1/2 z-10 h-5 w-5 -translate-y-1/2 text-muted" />
           <Input

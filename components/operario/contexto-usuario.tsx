@@ -12,6 +12,9 @@ export interface UsuarioSesion {
 
 const ContextoUsuario = createContext<UsuarioSesion | null>(null);
 
+/** Cada cuánto se vuelve a descargar la estructura del almacén (con conexión). */
+const INTERVALO_ESTRUCTURA_MS = 2 * 60_000;
+
 export function useUsuario(): UsuarioSesion {
   const usuario = useContext(ContextoUsuario);
   if (!usuario) throw new Error("useUsuario debe usarse dentro de ProveedorUsuario");
@@ -33,6 +36,28 @@ export function ProveedorUsuario({
   useEffect(() => {
     syncManager.iniciar();
     void precargarEstructura();
+
+    // Refresca la estructura de forma periódica y al recuperar conexión, para
+    // que las estancias/estanterías/ubicaciones que cree la oficina aparezcan
+    // en el móvil sin tener que cerrar y abrir la aplicación.
+    const intervalo = setInterval(() => {
+      if (navigator.onLine) void precargarEstructura();
+    }, INTERVALO_ESTRUCTURA_MS);
+
+    const alVolverOnline = () => void precargarEstructura();
+    const alVolverAlFrente = () => {
+      if (document.visibilityState === "visible" && navigator.onLine) {
+        void precargarEstructura();
+      }
+    };
+    window.addEventListener("online", alVolverOnline);
+    document.addEventListener("visibilitychange", alVolverAlFrente);
+
+    return () => {
+      clearInterval(intervalo);
+      window.removeEventListener("online", alVolverOnline);
+      document.removeEventListener("visibilitychange", alVolverAlFrente);
+    };
   }, []);
 
   return <ContextoUsuario.Provider value={usuario}>{children}</ContextoUsuario.Provider>;

@@ -59,6 +59,8 @@ model Almacen {
   id          String  @id @default(uuid())
   nombre      String
   descripcion String?
+  /// Borrado lógico: se oculta sin perder los recuentos ya realizados.
+  archivada   Boolean @default(false)
 
   estancias Estancia[]
 
@@ -71,6 +73,8 @@ model Estancia {
   almacenId String
   codigo    String
   nombre    String
+  /// Borrado lógico: se oculta sin perder los recuentos ya realizados.
+  archivada Boolean @default(false)
 
   almacen     Almacen      @relation(fields: [almacenId], references: [id], onDelete: Cascade)
   estanterias Estanteria[]
@@ -84,6 +88,8 @@ model Estanteria {
   estanciaId  String
   codigo      String
   descripcion String?
+  /// Borrado lógico: se oculta sin perder los recuentos ya realizados.
+  archivada   Boolean @default(false)
 
   estancia    Estancia    @relation(fields: [estanciaId], references: [id], onDelete: Cascade)
   ubicaciones Ubicacion[]
@@ -100,6 +106,8 @@ model Ubicacion {
   nivel        Int?
   hueco        Int?
   descripcion  String?
+  /// Borrado lógico: se oculta sin perder los recuentos ya realizados.
+  archivada    Boolean @default(false)
 
   estanteria Estanteria @relation(fields: [estanteriaId], references: [id], onDelete: Cascade)
   recuentos  Recuento[]

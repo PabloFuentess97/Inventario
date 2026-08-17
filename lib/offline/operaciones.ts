@@ -9,7 +9,16 @@ import { syncManager } from "./sync";
  * (la UI nunca espera a la red) y encolan la réplica hacia el servidor.
  */
 
-/** Descarga la estructura de ubicaciones y unidades para trabajar sin conexión. */
+/**
+ * Descarga la estructura de ubicaciones y unidades para trabajar sin conexión.
+ *
+ * Se llama al entrar y de forma periódica (ver ProveedorUsuario), para que las
+ * estructuras que la oficina cree DESPUÉS aparezcan también en el móvil.
+ *
+ * Respeta el trabajo local: las ubicaciones donde este operario tiene un
+ * recuento EN_PROGRESO se mantienen marcadas como ocupadas aunque el servidor
+ * aún no lo sepa (por ejemplo si se inició sin cobertura).
+ */
 export async function precargarEstructura(): Promise<boolean> {
   try {
     const respuesta = await fetch("/api/estructura");
@@ -18,9 +27,18 @@ export async function precargarEstructura(): Promise<boolean> {
       ubicaciones: UbicacionLocal[];
       unidades: { id: string; codigo: string; nombre: string }[];
     };
+
+    // Ubicaciones que este dispositivo está contando ahora mismo
+    const enCurso = await dbLocal.recuentos.where("estado").equals("EN_PROGRESO").toArray();
+    const ocupadasLocalmente = new Set(enCurso.map((r) => r.ubicacionId));
+
     await dbLocal.transaction("rw", [dbLocal.ubicaciones, dbLocal.unidades], async () => {
       await dbLocal.ubicaciones.clear();
-      await dbLocal.ubicaciones.bulkPut(datos.ubicaciones);
+      await dbLocal.ubicaciones.bulkPut(
+        datos.ubicaciones.map((u) =>
+          ocupadasLocalmente.has(u.id) ? { ...u, ocupada: true } : u
+        )
+      );
       await dbLocal.unidades.clear();
       await dbLocal.unidades.bulkPut(datos.unidades);
     });

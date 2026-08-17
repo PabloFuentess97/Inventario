@@ -53,6 +53,15 @@ Servicios que levanta el compose:
 
 Las **fotos** se guardan en el volumen `uploads` (nunca se pierden entre despliegues). Comandos útiles: `docker compose logs -f worker`, `docker compose ps`, `docker compose down` (parar sin borrar datos), `docker compose down -v` (borrar también los volúmenes).
 
+## Borrado seguro de la estructura (solo administrador)
+
+Borrar estructura nunca destruye recuentos. Solo el **administrador** ve los botones de borrado, y siempre con **doble confirmación** (un aviso que explica el impacto real + escribir el código exacto del elemento):
+
+- **Si tiene recuentos → se archiva.** Desaparece de la oficina y de los móviles de los operarios, pero los recuentos, las fotos y los informes siguen intactos y exportables. Es reversible: con «Ver archivadas» el administrador puede **restaurar** lo archivado.
+- **Si no tiene ningún recuento → se elimina de verdad**, junto con su contenido (limpieza real de estructura creada por error).
+
+El archivado se aplica en cascada (un almacén archiva sus estancias, estanterías y ubicaciones) para que no queden elementos huérfanos visibles en el móvil. Comprobado con `npx tsx scripts/probar-archivado.ts`.
+
 ## Cómo la cola evita perder datos (Redis + BullMQ)
 
 Cuando **uno o muchos dispositivos** recuperan cobertura a la vez, sus outbox vuelcan las operaciones contra `/api/sync`. En lugar de aplicarlas directamente a Postgres (lo que saturaría la BD con muchos operarios), el endpoint las **encola en Redis** y un **worker** con concurrencia controlada las va aplicando:

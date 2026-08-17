@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { ApiError, conManejadorErrores, requireSesion } from "@/lib/api";
+import { conManejadorErrores, requireSesion } from "@/lib/api";
+import { borrarEstructura } from "@/lib/estructura";
 
 const schema = z.object({
   codigo: z.string().min(1).max(50).optional(),
@@ -20,13 +21,15 @@ export const PATCH = conManejadorErrores(async (peticion: Request, { params }: C
   return NextResponse.json({ ubicacion });
 });
 
+/**
+ * Borrado seguro (solo ADMIN):
+ *  - sin recuentos → se elimina de verdad
+ *  - con recuentos → se ARCHIVA: se oculta de la app y del móvil, pero los
+ *    recuentos, fotos e informes se conservan intactos (reversible)
+ */
 export const DELETE = conManejadorErrores(async (_peticion: Request, { params }: Contexto) => {
-  await requireSesion(["OFICINISTA", "ADMIN"]);
+  await requireSesion(["ADMIN"]);
   const { id } = await params;
-  const conRecuentos = await prisma.recuento.count({ where: { ubicacionId: id } });
-  if (conRecuentos > 0) {
-    throw new ApiError(409, "No se puede eliminar: la ubicación tiene recuentos registrados");
-  }
-  await prisma.ubicacion.delete({ where: { id } });
-  return NextResponse.json({ ok: true });
+  const resultado = await borrarEstructura("ubicacion", id);
+  return NextResponse.json({ ok: true, ...resultado });
 });

@@ -8,19 +8,32 @@ const almacenSchema = z.object({
   descripcion: z.string().max(1000).optional().nullable(),
 });
 
-/** Lista de almacenes con su árbol completo (para el panel de estructura). */
-export const GET = conManejadorErrores(async () => {
+/**
+ * Lista de almacenes con su árbol completo (para el panel de estructura).
+ * Por defecto oculta lo archivado; con ?incluirArchivados=1 se muestra todo
+ * (el administrador puede así restaurar lo que archivó).
+ */
+export const GET = conManejadorErrores(async (peticion: Request) => {
   await requireSesion(["OFICINISTA", "ADMIN"]);
+  const incluirArchivados =
+    new URL(peticion.url).searchParams.get("incluirArchivados") === "1";
+  const soloActivos = incluirArchivados ? {} : { archivada: false };
   const almacenes = await prisma.almacen.findMany({
+    where: soloActivos,
     orderBy: { nombre: "asc" },
     include: {
       estancias: {
+        where: soloActivos,
         orderBy: { codigo: "asc" },
         include: {
           estanterias: {
+            where: soloActivos,
             orderBy: { codigo: "asc" },
             include: {
-              ubicaciones: { orderBy: [{ nivel: "asc" }, { hueco: "asc" }, { codigo: "asc" }] },
+              ubicaciones: {
+                where: soloActivos,
+                orderBy: [{ nivel: "asc" }, { hueco: "asc" }, { codigo: "asc" }],
+              },
               _count: { select: { ubicaciones: true } },
             },
           },

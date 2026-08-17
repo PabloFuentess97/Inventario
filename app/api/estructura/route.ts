@@ -12,15 +12,22 @@ export const GET = conManejadorErrores(async () => {
   await requireSesion();
 
   const [almacenes, unidades, recuentosActivos] = await Promise.all([
+    // El operario solo ve estructura ACTIVA (lo archivado desaparece del móvil)
     prisma.almacen.findMany({
+      where: { archivada: false },
       include: {
         estancias: {
+          where: { archivada: false },
           orderBy: { codigo: "asc" },
           include: {
             estanterias: {
+              where: { archivada: false },
               orderBy: { codigo: "asc" },
               include: {
-                ubicaciones: { orderBy: [{ nivel: "asc" }, { hueco: "asc" }, { codigo: "asc" }] },
+                ubicaciones: {
+                  where: { archivada: false },
+                  orderBy: [{ nivel: "asc" }, { hueco: "asc" }, { codigo: "asc" }],
+                },
               },
             },
           },

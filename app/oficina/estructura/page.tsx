@@ -3,9 +3,11 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  ArchiveRestore,
   Boxes,
   ChevronDown,
   ChevronRight,
+  Eye,
   FileUp,
   Grid3x3,
   Plus,
@@ -15,29 +17,38 @@ import {
 import { Button, Card, Chip, Input, Label, Modal, TextArea, TextField } from "@heroui/react";
 import { toast } from "@/lib/toast";
 import { apiFetch } from "@/lib/cliente-api";
+import {
+  DialogoBorrarEstructura,
+  type ObjetivoBorrado,
+  type TipoEstructura,
+} from "@/components/oficina/dialogo-borrar-estructura";
 
 interface Ubicacion {
   id: string;
   codigo: string;
   nivel: number | null;
   hueco: number | null;
+  archivada: boolean;
 }
 interface Estanteria {
   id: string;
   codigo: string;
   descripcion: string | null;
+  archivada: boolean;
   ubicaciones: Ubicacion[];
 }
 interface Estancia {
   id: string;
   codigo: string;
   nombre: string;
+  archivada: boolean;
   estanterias: Estanteria[];
 }
 interface Almacen {
   id: string;
   nombre: string;
   descripcion: string | null;
+  archivada: boolean;
   estancias: Estancia[];
 }
 
@@ -57,19 +68,36 @@ type Dialogo =
  */
 export default function PaginaEstructura() {
   const queryClient = useQueryClient();
+  const [verArchivadas, setVerArchivadas] = useState(false);
+  const [dialogo, setDialogo] = useState<Dialogo>(null);
+  const [borrando, setBorrando] = useState<ObjetivoBorrado | null>(null);
+
+  // Solo el administrador puede borrar o archivar estructura
+  const { data: yo } = useQuery({
+    queryKey: ["yo"],
+    queryFn: () => apiFetch<{ rol: string }>("/api/yo"),
+    staleTime: 5 * 60_000,
+  });
+  const esAdmin = yo?.rol === "ADMIN";
+
   const { data, isLoading } = useQuery({
-    queryKey: ["almacenes"],
-    queryFn: () => apiFetch<{ almacenes: Almacen[] }>("/api/almacenes"),
+    queryKey: ["almacenes", verArchivadas],
+    queryFn: () =>
+      apiFetch<{ almacenes: Almacen[] }>(
+        "/api/almacenes" + (verArchivadas ? "?incluirArchivados=1" : "")
+      ),
   });
 
   const invalidar = () => queryClient.invalidateQueries({ queryKey: ["almacenes"] });
-  const [dialogo, setDialogo] = useState<Dialogo>(null);
 
-  const eliminar = useMutation({
-    mutationFn: ({ recurso, id }: { recurso: string; id: string }) =>
-      apiFetch(`/api/${recurso}/${id}`, { method: "DELETE" }),
+  const restaurar = useMutation({
+    mutationFn: ({ tipo, id }: { tipo: TipoEstructura; id: string }) =>
+      apiFetch("/api/estructura/restaurar", {
+        method: "POST",
+        body: JSON.stringify({ tipo, id }),
+      }),
     onSuccess: () => {
-      toast.success("Eliminado");
+      toast.success("Restaurado: vuelve a estar disponible para los operarios");
       invalidar();
     },
     onError: (e: Error) => toast.error(e.message),
@@ -79,7 +107,13 @@ export default function PaginaEstructura() {
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-bold tracking-tight">Estructura del almacén</h1>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          {esAdmin && (
+            <Button variant="ghost" onPress={() => setVerArchivadas(!verArchivadas)}>
+              <Eye className="h-4 w-4" />
+              {verArchivadas ? "Ocultar archivadas" : "Ver archivadas"}
+            </Button>
+          )}
           <Button variant="outline" onPress={() => setDialogo({ tipo: "csv" })}>
             <FileUp className="h-4 w-4" />
             Importar CSV
@@ -105,11 +139,16 @@ export default function PaginaEstructura() {
       {data?.almacenes.map((almacen) => (
         <Card key={almacen.id}>
           <Card.Header className="flex flex-row flex-wrap items-center justify-between gap-2">
-            <Card.Title className="flex items-center gap-2">
+            <Card.Title className="flex flex-wrap items-center gap-2">
               <Warehouse className="h-5 w-5 text-accent" />
               {almacen.nombre}
               {almacen.descripcion && (
                 <span className="text-sm font-normal text-muted">— {almacen.descripcion}</span>
+              )}
+              {almacen.archivada && (
+                <Chip size="sm" color="warning" variant="soft">
+                  Archivado
+                </Chip>
               )}
             </Card.Title>
             <div className="flex gap-2">
@@ -121,20 +160,30 @@ export default function PaginaEstructura() {
                 <Plus className="h-4 w-4" />
                 Estancia
               </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                isIconOnly
-                className="text-muted"
-                aria-label="Eliminar almacén"
-                onPress={() => {
-                  if (confirm(`¿Eliminar el almacén «${almacen.nombre}» y toda su estructura?`)) {
-                    eliminar.mutate({ recurso: "almacenes", id: almacen.id });
+              {esAdmin && almacen.archivada && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onPress={() => restaurar.mutate({ tipo: "almacen", id: almacen.id })}
+                >
+                  <ArchiveRestore className="h-4 w-4" />
+                  Restaurar
+                </Button>
+              )}
+              {esAdmin && !almacen.archivada && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  isIconOnly
+                  className="text-muted"
+                  aria-label="Eliminar almacén"
+                  onPress={() =>
+                    setBorrando({ tipo: "almacen", id: almacen.id, etiqueta: almacen.nombre })
                   }
-                }}
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              )}
             </div>
           </Card.Header>
           <Card.Content className="flex flex-col gap-3">
@@ -142,16 +191,14 @@ export default function PaginaEstructura() {
               <NodoEstancia
                 key={estancia.id}
                 estancia={estancia}
+                esAdmin={!!esAdmin}
                 onNuevaEstanteria={() => setDialogo({ tipo: "estanteria", estanciaId: estancia.id })}
                 onNuevaUbicacion={(estanteriaId) => setDialogo({ tipo: "ubicacion", estanteriaId })}
                 onLote={(estanteriaId, codigo) =>
                   setDialogo({ tipo: "lote", estanteriaId, estanteriaCodigo: codigo })
                 }
-                onEliminar={(recurso, id) => {
-                  if (confirm("¿Eliminar este elemento y todo su contenido?")) {
-                    eliminar.mutate({ recurso, id });
-                  }
-                }}
+                onBorrar={setBorrando}
+                onRestaurar={(tipo, id) => restaurar.mutate({ tipo, id })}
               />
             ))}
             {almacen.estancias.length === 0 && (
@@ -162,22 +209,31 @@ export default function PaginaEstructura() {
       ))}
 
       <DialogosEstructura dialogo={dialogo} onCerrar={() => setDialogo(null)} onExito={invalidar} />
+      <DialogoBorrarEstructura
+        objetivo={borrando}
+        onCerrar={() => setBorrando(null)}
+        onExito={invalidar}
+      />
     </div>
   );
 }
 
 function NodoEstancia({
   estancia,
+  esAdmin,
   onNuevaEstanteria,
   onNuevaUbicacion,
   onLote,
-  onEliminar,
+  onBorrar,
+  onRestaurar,
 }: {
   estancia: Estancia;
+  esAdmin: boolean;
   onNuevaEstanteria: () => void;
   onNuevaUbicacion: (estanteriaId: string) => void;
   onLote: (estanteriaId: string, codigo: string) => void;
-  onEliminar: (recurso: string, id: string) => void;
+  onBorrar: (objetivo: ObjetivoBorrado) => void;
+  onRestaurar: (tipo: TipoEstructura, id: string) => void;
 }) {
   const [abierta, setAbierta] = useState(true);
 
@@ -199,22 +255,45 @@ function NodoEstancia({
           <Chip size="sm" variant="soft">
             {estancia.estanterias.length} estanterías
           </Chip>
+          {estancia.archivada && (
+            <Chip size="sm" color="warning" variant="soft">
+              Archivada
+            </Chip>
+          )}
         </button>
         <div className="flex gap-1">
           <Button variant="ghost" size="sm" onPress={onNuevaEstanteria}>
             <Plus className="h-4 w-4" />
             Estantería
           </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            isIconOnly
-            className="text-muted"
-            aria-label="Eliminar estancia"
-            onPress={() => onEliminar("estancias", estancia.id)}
-          >
-            <Trash2 className="h-4 w-4" />
-          </Button>
+          {esAdmin && estancia.archivada && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onPress={() => onRestaurar("estancia", estancia.id)}
+            >
+              <ArchiveRestore className="h-4 w-4" />
+              Restaurar
+            </Button>
+          )}
+          {esAdmin && !estancia.archivada && (
+            <Button
+              variant="ghost"
+              size="sm"
+              isIconOnly
+              className="text-muted"
+              aria-label="Eliminar estancia"
+              onPress={() =>
+                onBorrar({
+                  tipo: "estancia",
+                  id: estancia.id,
+                  etiqueta: estancia.codigo,
+                })
+              }
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          )}
         </div>
       </div>
 
@@ -224,9 +303,11 @@ function NodoEstancia({
             <NodoEstanteria
               key={estanteria.id}
               estanteria={estanteria}
+              esAdmin={esAdmin}
               onNuevaUbicacion={() => onNuevaUbicacion(estanteria.id)}
               onLote={() => onLote(estanteria.id, estanteria.codigo)}
-              onEliminar={onEliminar}
+              onBorrar={onBorrar}
+              onRestaurar={onRestaurar}
             />
           ))}
           {estancia.estanterias.length === 0 && (
@@ -240,14 +321,18 @@ function NodoEstancia({
 
 function NodoEstanteria({
   estanteria,
+  esAdmin,
   onNuevaUbicacion,
   onLote,
-  onEliminar,
+  onBorrar,
+  onRestaurar,
 }: {
   estanteria: Estanteria;
+  esAdmin: boolean;
   onNuevaUbicacion: () => void;
   onLote: () => void;
-  onEliminar: (recurso: string, id: string) => void;
+  onBorrar: (objetivo: ObjetivoBorrado) => void;
+  onRestaurar: (tipo: TipoEstructura, id: string) => void;
 }) {
   const [abierta, setAbierta] = useState(false);
 
@@ -267,6 +352,11 @@ function NodoEstanteria({
           <Chip size="sm" variant="soft">
             {estanteria.ubicaciones.length} ubicaciones
           </Chip>
+          {estanteria.archivada && (
+            <Chip size="sm" color="warning" variant="soft">
+              Archivada
+            </Chip>
+          )}
         </button>
         <div className="flex gap-1">
           <Button variant="ghost" size="sm" onPress={onLote} aria-label="Generar ubicaciones en lote">
@@ -276,16 +366,34 @@ function NodoEstanteria({
           <Button variant="ghost" size="sm" isIconOnly aria-label="Nueva ubicación" onPress={onNuevaUbicacion}>
             <Plus className="h-4 w-4" />
           </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            isIconOnly
-            className="text-muted"
-            aria-label="Eliminar estantería"
-            onPress={() => onEliminar("estanterias", estanteria.id)}
-          >
-            <Trash2 className="h-4 w-4" />
-          </Button>
+          {esAdmin && estanteria.archivada && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onPress={() => onRestaurar("estanteria", estanteria.id)}
+            >
+              <ArchiveRestore className="h-4 w-4" />
+              Restaurar
+            </Button>
+          )}
+          {esAdmin && !estanteria.archivada && (
+            <Button
+              variant="ghost"
+              size="sm"
+              isIconOnly
+              className="text-muted"
+              aria-label="Eliminar estantería"
+              onPress={() =>
+                onBorrar({
+                  tipo: "estanteria",
+                  id: estanteria.id,
+                  etiqueta: estanteria.codigo,
+                })
+              }
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          )}
         </div>
       </div>
       {abierta && (
@@ -296,13 +404,17 @@ function NodoEstanteria({
               className="group inline-flex items-center gap-1 rounded-md border bg-surface px-2 py-1 text-xs font-medium"
             >
               {u.codigo}
-              <button
-                className="hidden text-muted hover:text-danger group-hover:inline"
-                onClick={() => onEliminar("ubicaciones", u.id)}
-                aria-label={`Eliminar ${u.codigo}`}
-              >
-                <Trash2 className="h-3 w-3" />
-              </button>
+              {esAdmin && (
+                <button
+                  className="hidden text-muted hover:text-danger group-hover:inline"
+                  onClick={() =>
+                    onBorrar({ tipo: "ubicacion", id: u.id, etiqueta: u.codigo })
+                  }
+                  aria-label={`Eliminar ${u.codigo}`}
+                >
+                  <Trash2 className="h-3 w-3" />
+                </button>
+              )}
             </span>
           ))}
           {estanteria.ubicaciones.length === 0 && (

@@ -30,6 +30,10 @@ type Oyente = () => void;
 const BACKOFF_BASE_MS = 3_000;
 const BACKOFF_MAX_MS = 5 * 60_000;
 const INTERVALO_PERIODICO_MS = 30_000;
+/** Operaciones por petición (el servidor acepta como máximo 500). */
+const TAMANO_LOTE = 100;
+/** Fotos que se suben por ciclo de sincronización (evita saturar la subida). */
+const FOTOS_POR_CICLO = 8;
 
 class SyncManager {
   private estado: EstadoSync = {
@@ -142,13 +146,18 @@ class SyncManager {
     this.actualizar({ sincronizando: true, ultimoError: null });
 
     try {
-      // 1) Operaciones de datos, en orden
-      if (ops.length > 0) {
+      // 1) Operaciones de datos, EN ORDEN y por lotes.
+      //    Trocear es imprescindible: tras una jornada larga sin cobertura el
+      //    outbox puede tener miles de operaciones y el servidor limita el
+      //    tamaño del lote; enviarlas todas de golpe bloquearía la sincronización.
+      for (let i = 0; i < ops.length; i += TAMANO_LOTE) {
+        const lote = ops.slice(i, i + TAMANO_LOTE);
+
         const respuesta = await fetch("/api/sync", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            operaciones: ops.map((o) => ({
+            operaciones: lote.map((o) => ({
               opId: o.opId,
               tipo: o.tipo,
               payload: o.payload,
@@ -162,8 +171,9 @@ class SyncManager {
           resultados: { opId: string; ok: boolean; codigo?: string; error?: string }[];
         };
 
+        let huboPendiente = false;
         for (const r of resultados) {
-          const op = ops.find((o) => o.opId === r.opId);
+          const op = lote.find((o) => o.opId === r.opId);
           if (!op) continue;
           if (r.ok || r.codigo === "YA_APLICADA") {
             await dbLocal.outbox.where("opId").equals(r.opId).delete();
@@ -174,20 +184,33 @@ class SyncManager {
             const recuentoId = op.payload.id as string;
             await dbLocal.recuentos.update(recuentoId, { conflicto: true });
           } else if (r.codigo === "RECHAZADA") {
-            // El servidor la rechaza de forma definitiva (p. ej. recuento ya
-            // finalizado por la oficina): no tiene sentido reintentar.
+            // El servidor la rechaza de forma definitiva (p. ej. su recuento
+            // quedó en conflicto): no tiene sentido reintentar.
             await dbLocal.outbox.where("opId").equals(r.opId).delete();
           } else {
+            huboPendiente = true;
             await dbLocal.outbox
               .where("opId")
               .equals(r.opId)
               .modify({ intentos: op.intentos + 1, ultimoError: r.error ?? "Error desconocido" });
           }
         }
+
+        // Si algo del lote quedó pendiente, no seguimos con los lotes
+        // siguientes: mantener el ORDEN es lo que garantiza que una línea
+        // nunca se aplique antes que su recuento.
+        if (huboPendiente) {
+          await this.refrescarPendientes();
+          this.actualizar({ sincronizando: false, online: true });
+          this.programarReintento();
+          return;
+        }
       }
 
-      // 2) Fotos en diferido
-      for (const foto of fotosPendientes) {
+      // 2) Fotos en diferido, en tandas para no saturar la subida (una foto
+      //    pesa mucho más que una operación; con mala cobertura conviene ir
+      //    poco a poco y dejar que el siguiente ciclo siga donde lo dejó).
+      for (const foto of fotosPendientes.slice(0, FOTOS_POR_CICLO)) {
         const formulario = new FormData();
         formulario.append("archivo", foto.blob, `${foto.id}`);
         formulario.append("destino", foto.destino);

@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { ApiError, conManejadorErrores, requireSesion } from "@/lib/api";
+import { conManejadorErrores, requireSesion } from "@/lib/api";
+import { borrarEstructura } from "@/lib/estructura";
 
 const schema = z.object({
   nombre: z.string().min(1).max(200).optional(),
@@ -18,16 +19,15 @@ export const PATCH = conManejadorErrores(async (peticion: Request, { params }: C
   return NextResponse.json({ almacen });
 });
 
+/**
+ * Borrado seguro (solo ADMIN):
+ *  - sin recuentos → se elimina de verdad
+ *  - con recuentos → se ARCHIVA: se oculta de la app y del móvil, pero los
+ *    recuentos, fotos e informes se conservan intactos (reversible)
+ */
 export const DELETE = conManejadorErrores(async (_peticion: Request, { params }: Contexto) => {
-  await requireSesion(["OFICINISTA", "ADMIN"]);
+  await requireSesion(["ADMIN"]);
   const { id } = await params;
-  // No se permite borrar un almacén con recuentos registrados (trazabilidad)
-  const conRecuentos = await prisma.recuento.count({
-    where: { ubicacion: { estanteria: { estancia: { almacenId: id } } } },
-  });
-  if (conRecuentos > 0) {
-    throw new ApiError(409, "No se puede eliminar: el almacén tiene recuentos registrados");
-  }
-  await prisma.almacen.delete({ where: { id } });
-  return NextResponse.json({ ok: true });
+  const resultado = await borrarEstructura("almacen", id);
+  return NextResponse.json({ ok: true, ...resultado });
 });
