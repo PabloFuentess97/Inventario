@@ -4,7 +4,7 @@ import { conManejadorErrores, requireSesion } from "@/lib/api";
 import { restaurarEstructura } from "@/lib/estructura";
 
 const schema = z.object({
-  tipo: z.enum(["almacen", "estancia", "estanteria", "ubicacion"]),
+  tipo: z.enum(["almacen", "pasillo", "estanteria", "ubicacion"]),
   id: z.string(),
 });
 

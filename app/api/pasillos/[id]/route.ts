@@ -15,8 +15,8 @@ export const PATCH = conManejadorErrores(async (peticion: Request, { params }: C
   await requireSesion(["OFICINISTA", "ADMIN"]);
   const { id } = await params;
   const datos = schema.parse(await peticion.json());
-  const estancia = await prisma.estancia.update({ where: { id }, data: datos });
-  return NextResponse.json({ estancia });
+  const pasillo = await prisma.pasillo.update({ where: { id }, data: datos });
+  return NextResponse.json({ pasillo });
 });
 
 /**
@@ -28,6 +28,6 @@ export const PATCH = conManejadorErrores(async (peticion: Request, { params }: C
 export const DELETE = conManejadorErrores(async (_peticion: Request, { params }: Contexto) => {
   await requireSesion(["ADMIN"]);
   const { id } = await params;
-  const resultado = await borrarEstructura("estancia", id);
+  const resultado = await borrarEstructura("pasillo", id);
   return NextResponse.json({ ok: true, ...resultado });
 });

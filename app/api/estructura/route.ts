@@ -16,7 +16,7 @@ export const GET = conManejadorErrores(async () => {
     prisma.almacen.findMany({
       where: { archivada: false },
       include: {
-        estancias: {
+        pasillos: {
           where: { archivada: false },
           orderBy: { codigo: "asc" },
           include: {
@@ -41,8 +41,8 @@ export const GET = conManejadorErrores(async () => {
   const ocupadas = new Set(recuentosActivos.map((r) => r.ubicacionId));
 
   const ubicaciones = almacenes.flatMap((almacen) =>
-    almacen.estancias.flatMap((estancia) =>
-      estancia.estanterias.flatMap((estanteria) =>
+    almacen.pasillos.flatMap((pasillo) =>
+      pasillo.estanterias.flatMap((estanteria) =>
         estanteria.ubicaciones.map((u) => ({
           id: u.id,
           codigo: u.codigo,
@@ -51,9 +51,9 @@ export const GET = conManejadorErrores(async () => {
           descripcion: u.descripcion,
           estanteriaId: estanteria.id,
           estanteriaCodigo: estanteria.codigo,
-          estanciaId: estancia.id,
-          estanciaCodigo: estancia.codigo,
-          estanciaNombre: estancia.nombre,
+          pasilloId: pasillo.id,
+          pasilloCodigo: pasillo.codigo,
+          pasilloNombre: pasillo.nombre,
           almacenId: almacen.id,
           almacenNombre: almacen.nombre,
           ocupada: ocupadas.has(u.id),
@@ -64,6 +64,11 @@ export const GET = conManejadorErrores(async () => {
 
   return NextResponse.json({
     ubicaciones,
-    unidades: unidades.map((u) => ({ id: u.id, codigo: u.codigo, nombre: u.nombre })),
+    unidades: unidades.map((u) => ({
+      id: u.id,
+      codigo: u.codigo,
+      nombre: u.nombre,
+      porDefecto: u.porDefecto,
+    })),
   });
 });

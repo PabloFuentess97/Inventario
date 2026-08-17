@@ -18,7 +18,7 @@ interface Resumen {
     id: string;
     iniciadoEn: string;
     operario: { nombre: string; nbi: string };
-    ubicacion: { codigo: string; estanteria: { codigo: string; estancia: { nombre: string } } };
+    ubicacion: { codigo: string; estanteria: { codigo: string; pasillo: { nombre: string } } };
     _count: { lineas: number };
   }[];
 }
@@ -116,7 +116,7 @@ export default function PaginaPanelOficina() {
                     {data.activos.map((r) => (
                       <Table.Row key={r.id}>
                         <Table.Cell className="font-medium">{r.ubicacion.codigo}</Table.Cell>
-                        <Table.Cell>{r.ubicacion.estanteria.estancia.nombre}</Table.Cell>
+                        <Table.Cell>{r.ubicacion.estanteria.pasillo.nombre}</Table.Cell>
                         <Table.Cell>
                           {r.operario.nombre}{" "}
                           <span className="text-muted">({r.operario.nbi})</span>

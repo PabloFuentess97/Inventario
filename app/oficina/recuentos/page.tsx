@@ -18,7 +18,7 @@ interface RecuentoFila {
   operario: { nombre: string; nbi: string };
   ubicacion: {
     codigo: string;
-    estanteria: { codigo: string; estancia: { nombre: string; almacen: { nombre: string } } };
+    estanteria: { codigo: string; pasillo: { nombre: string; almacen: { nombre: string } } };
   };
   _count: { lineas: number };
 }
@@ -117,7 +117,7 @@ export default function PaginaRecuentos() {
                     </Link>
                   </Table.Cell>
                   <Table.Cell className="text-muted">
-                    {r.ubicacion.estanteria.codigo} · {r.ubicacion.estanteria.estancia.nombre}
+                    {r.ubicacion.estanteria.codigo} · {r.ubicacion.estanteria.pasillo.nombre}
                   </Table.Cell>
                   <Table.Cell>
                     {r.operario.nombre} <span className="text-muted">({r.operario.nbi})</span>

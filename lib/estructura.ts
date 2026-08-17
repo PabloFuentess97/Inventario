@@ -13,7 +13,7 @@ import { prisma } from "@/lib/prisma";
  * Devuelve qué se hizo para poder informar al usuario con precisión.
  */
 
-export type TipoEstructura = "almacen" | "estancia" | "estanteria" | "ubicacion";
+export type TipoEstructura = "almacen" | "pasillo" | "estanteria" | "ubicacion";
 
 export interface ResultadoBorrado {
   accion: "archivado" | "eliminado";
@@ -25,10 +25,10 @@ export async function contarRecuentos(tipo: TipoEstructura, id: string): Promise
   switch (tipo) {
     case "almacen":
       return prisma.recuento.count({
-        where: { ubicacion: { estanteria: { estancia: { almacenId: id } } } },
+        where: { ubicacion: { estanteria: { pasillo: { almacenId: id } } } },
       });
-    case "estancia":
-      return prisma.recuento.count({ where: { ubicacion: { estanteria: { estanciaId: id } } } });
+    case "pasillo":
+      return prisma.recuento.count({ where: { ubicacion: { estanteria: { pasilloId: id } } } });
     case "estanteria":
       return prisma.recuento.count({ where: { ubicacion: { estanteriaId: id } } });
     case "ubicacion":
@@ -39,7 +39,7 @@ export async function contarRecuentos(tipo: TipoEstructura, id: string): Promise
 /**
  * Archiva o elimina el elemento según si tiene recuentos.
  * Al archivar, se archiva también todo su contenido (en cascada lógica) para
- * que no queden estancias o ubicaciones "huérfanas" visibles en el móvil.
+ * que no queden pasillos o ubicaciones "huérfanas" visibles en el móvil.
  */
 export async function borrarEstructura(
   tipo: TipoEstructura,
@@ -53,8 +53,8 @@ export async function borrarEstructura(
       case "almacen":
         await prisma.almacen.delete({ where: { id } });
         break;
-      case "estancia":
-        await prisma.estancia.delete({ where: { id } });
+      case "pasillo":
+        await prisma.pasillo.delete({ where: { id } });
         break;
       case "estanteria":
         await prisma.estanteria.delete({ where: { id } });
@@ -71,22 +71,22 @@ export async function borrarEstructura(
     switch (tipo) {
       case "almacen": {
         await tx.almacen.update({ where: { id }, data: { archivada: true } });
-        await tx.estancia.updateMany({ where: { almacenId: id }, data: { archivada: true } });
+        await tx.pasillo.updateMany({ where: { almacenId: id }, data: { archivada: true } });
         await tx.estanteria.updateMany({
-          where: { estancia: { almacenId: id } },
+          where: { pasillo: { almacenId: id } },
           data: { archivada: true },
         });
         await tx.ubicacion.updateMany({
-          where: { estanteria: { estancia: { almacenId: id } } },
+          where: { estanteria: { pasillo: { almacenId: id } } },
           data: { archivada: true },
         });
         break;
       }
-      case "estancia": {
-        await tx.estancia.update({ where: { id }, data: { archivada: true } });
-        await tx.estanteria.updateMany({ where: { estanciaId: id }, data: { archivada: true } });
+      case "pasillo": {
+        await tx.pasillo.update({ where: { id }, data: { archivada: true } });
+        await tx.estanteria.updateMany({ where: { pasilloId: id }, data: { archivada: true } });
         await tx.ubicacion.updateMany({
-          where: { estanteria: { estanciaId: id } },
+          where: { estanteria: { pasilloId: id } },
           data: { archivada: true },
         });
         break;
@@ -106,33 +106,66 @@ export async function borrarEstructura(
   return { accion: "archivado", recuentos };
 }
 
+/**
+ * Reactiva (desarchiva) la rama a la que pertenece una estantería: la propia
+ * estantería, su pasillo y su almacén.
+ *
+ * Se usa al crear ubicaciones: si la rama estuviera archivada, la ubicación
+ * nueva no aparecería ni en la oficina ni en el móvil del operario, porque el
+ * filtro excluye toda la rama archivada aunque el elemento nuevo no lo esté.
+ */
+export async function reactivarRama(estanteriaId: string): Promise<void> {
+  const estanteria = await prisma.estanteria.findUnique({
+    where: { id: estanteriaId },
+    include: { pasillo: true },
+  });
+  if (!estanteria) return;
+  if (!estanteria.archivada && !estanteria.pasillo.archivada) {
+    // Ya está visible; se comprueba el almacén por si acaso
+    const almacen = await prisma.almacen.findUnique({
+      where: { id: estanteria.pasillo.almacenId },
+      select: { archivada: true },
+    });
+    if (!almacen?.archivada) return;
+  }
+
+  await prisma.$transaction([
+    prisma.estanteria.update({ where: { id: estanteriaId }, data: { archivada: false } }),
+    prisma.pasillo.update({ where: { id: estanteria.pasilloId }, data: { archivada: false } }),
+    prisma.almacen.update({
+      where: { id: estanteria.pasillo.almacenId },
+      data: { archivada: false },
+    }),
+  ]);
+}
+
 /** Restaura un elemento archivado (y sus padres, para que vuelva a ser visible). */
 export async function restaurarEstructura(tipo: TipoEstructura, id: string): Promise<void> {
   await prisma.$transaction(async (tx) => {
     switch (tipo) {
       case "almacen": {
         await tx.almacen.update({ where: { id }, data: { archivada: false } });
-        await tx.estancia.updateMany({ where: { almacenId: id }, data: { archivada: false } });
+        await tx.pasillo.updateMany({ where: { almacenId: id }, data: { archivada: false } });
         await tx.estanteria.updateMany({
-          where: { estancia: { almacenId: id } },
+          where: { pasillo: { almacenId: id } },
           data: { archivada: false },
         });
         await tx.ubicacion.updateMany({
-          where: { estanteria: { estancia: { almacenId: id } } },
+          where: { estanteria: { pasillo: { almacenId: id } } },
           data: { archivada: false },
         });
         break;
       }
-      case "estancia": {
-        const estancia = await tx.estancia.update({
+      case "pasillo": {
+        const pasillo = await tx.pasillo.update({
           where: { id },
           data: { archivada: false },
         });
-        // El padre debe estar visible para que se vea la estancia
-        await tx.almacen.update({ where: { id: estancia.almacenId }, data: { archivada: false } });
-        await tx.estanteria.updateMany({ where: { estanciaId: id }, data: { archivada: false } });
+        // El padre debe estar visible para que se vea el pasillo
+        await tx.almacen.update({ where: { id: pasillo.almacenId }, data: { archivada: false } });
+        await tx.estanteria.updateMany({ where: { pasilloId: id }, data: { archivada: false } });
         await tx.ubicacion.updateMany({
-          where: { estanteria: { estanciaId: id } },
+          where: { estanteria: { pasilloId: id } },
           data: { archivada: false },
         });
         break;
@@ -142,11 +175,11 @@ export async function restaurarEstructura(tipo: TipoEstructura, id: string): Pro
           where: { id },
           data: { archivada: false },
         });
-        const estancia = await tx.estancia.update({
-          where: { id: estanteria.estanciaId },
+        const pasillo = await tx.pasillo.update({
+          where: { id: estanteria.pasilloId },
           data: { archivada: false },
         });
-        await tx.almacen.update({ where: { id: estancia.almacenId }, data: { archivada: false } });
+        await tx.almacen.update({ where: { id: pasillo.almacenId }, data: { archivada: false } });
         await tx.ubicacion.updateMany({ where: { estanteriaId: id }, data: { archivada: false } });
         break;
       }
@@ -159,11 +192,11 @@ export async function restaurarEstructura(tipo: TipoEstructura, id: string): Pro
           where: { id: ubicacion.estanteriaId },
           data: { archivada: false },
         });
-        const estancia = await tx.estancia.update({
-          where: { id: estanteria.estanciaId },
+        const pasillo = await tx.pasillo.update({
+          where: { id: estanteria.pasilloId },
           data: { archivada: false },
         });
-        await tx.almacen.update({ where: { id: estancia.almacenId }, data: { archivada: false } });
+        await tx.almacen.update({ where: { id: pasillo.almacenId }, data: { archivada: false } });
         break;
       }
     }

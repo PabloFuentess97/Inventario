@@ -29,7 +29,7 @@ async function main() {
   const almacen = await prisma.almacen.create({
     data: {
       nombre: `${MARCA} Almacén`,
-      estancias: {
+      pasillos: {
         create: {
           codigo: "SZ1",
           nombre: "Zona sync",
@@ -37,9 +37,9 @@ async function main() {
         },
       },
     },
-    include: { estancias: { include: { estanterias: { include: { ubicaciones: true } } } } },
+    include: { pasillos: { include: { estanterias: { include: { ubicaciones: true } } } } },
   });
-  const ubicacionId = almacen.estancias[0].estanterias[0].ubicaciones[0].id;
+  const ubicacionId = almacen.pasillos[0].estanterias[0].ubicaciones[0].id;
 
   // Lote tal como lo envía el outbox del operario tras contar sin cobertura:
   // recuento → 3 líneas → incidencia → finalizar

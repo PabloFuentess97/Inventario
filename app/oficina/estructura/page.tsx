@@ -37,7 +37,7 @@ interface Estanteria {
   archivada: boolean;
   ubicaciones: Ubicacion[];
 }
-interface Estancia {
+interface Pasillo {
   id: string;
   codigo: string;
   nombre: string;
@@ -49,13 +49,13 @@ interface Almacen {
   nombre: string;
   descripcion: string | null;
   archivada: boolean;
-  estancias: Estancia[];
+  pasillos: Pasillo[];
 }
 
 type Dialogo =
   | { tipo: "almacen" }
-  | { tipo: "estancia"; almacenId: string }
-  | { tipo: "estanteria"; estanciaId: string }
+  | { tipo: "pasillo"; almacenId: string }
+  | { tipo: "estanteria"; pasilloId: string }
   | { tipo: "ubicacion"; estanteriaId: string }
   | { tipo: "lote"; estanteriaId: string; estanteriaCodigo: string }
   | { tipo: "csv" }
@@ -63,7 +63,7 @@ type Dialogo =
 
 /**
  * Configuración de la estructura física del almacén:
- * Almacén → Estancias → Estanterías → Ubicaciones.
+ * Almacén → Pasillos → Estanterías → Ubicaciones.
  * Sin artículos ni stock: solo se define dónde se contará.
  */
 export default function PaginaEstructura() {
@@ -130,7 +130,7 @@ export default function PaginaEstructura() {
       {data?.almacenes.length === 0 && (
         <Card>
           <Card.Content className="p-8 text-center text-muted">
-            Aún no hay almacenes. Crea uno para empezar a definir estancias, estanterías y
+            Aún no hay almacenes. Crea uno para empezar a definir pasillos, estanterías y
             ubicaciones.
           </Card.Content>
         </Card>
@@ -155,10 +155,10 @@ export default function PaginaEstructura() {
               <Button
                 variant="outline"
                 size="sm"
-                onPress={() => setDialogo({ tipo: "estancia", almacenId: almacen.id })}
+                onPress={() => setDialogo({ tipo: "pasillo", almacenId: almacen.id })}
               >
                 <Plus className="h-4 w-4" />
-                Estancia
+                Pasillo
               </Button>
               {esAdmin && almacen.archivada && (
                 <Button
@@ -187,12 +187,12 @@ export default function PaginaEstructura() {
             </div>
           </Card.Header>
           <Card.Content className="flex flex-col gap-3">
-            {almacen.estancias.map((estancia) => (
-              <NodoEstancia
-                key={estancia.id}
-                estancia={estancia}
+            {almacen.pasillos.map((pasillo) => (
+              <NodoPasillo
+                key={pasillo.id}
+                pasillo={pasillo}
                 esAdmin={!!esAdmin}
-                onNuevaEstanteria={() => setDialogo({ tipo: "estanteria", estanciaId: estancia.id })}
+                onNuevaEstanteria={() => setDialogo({ tipo: "estanteria", pasilloId: pasillo.id })}
                 onNuevaUbicacion={(estanteriaId) => setDialogo({ tipo: "ubicacion", estanteriaId })}
                 onLote={(estanteriaId, codigo) =>
                   setDialogo({ tipo: "lote", estanteriaId, estanteriaCodigo: codigo })
@@ -201,8 +201,8 @@ export default function PaginaEstructura() {
                 onRestaurar={(tipo, id) => restaurar.mutate({ tipo, id })}
               />
             ))}
-            {almacen.estancias.length === 0 && (
-              <p className="text-sm text-muted">Sin estancias todavía.</p>
+            {almacen.pasillos.length === 0 && (
+              <p className="text-sm text-muted">Sin pasillos todavía.</p>
             )}
           </Card.Content>
         </Card>
@@ -218,8 +218,8 @@ export default function PaginaEstructura() {
   );
 }
 
-function NodoEstancia({
-  estancia,
+function NodoPasillo({
+  pasillo,
   esAdmin,
   onNuevaEstanteria,
   onNuevaUbicacion,
@@ -227,7 +227,7 @@ function NodoEstancia({
   onBorrar,
   onRestaurar,
 }: {
-  estancia: Estancia;
+  pasillo: Pasillo;
   esAdmin: boolean;
   onNuevaEstanteria: () => void;
   onNuevaUbicacion: (estanteriaId: string) => void;
@@ -251,13 +251,13 @@ function NodoEstancia({
             <ChevronRight className="h-4 w-4 shrink-0" />
           )}
           <Boxes className="h-4 w-4 shrink-0 text-muted" />
-          {estancia.codigo} · {estancia.nombre}
+          {pasillo.codigo} · {pasillo.nombre}
           <Chip size="sm" variant="soft">
-            {estancia.estanterias.length} estanterías
+            {pasillo.estanterias.length} estanterías
           </Chip>
-          {estancia.archivada && (
+          {pasillo.archivada && (
             <Chip size="sm" color="warning" variant="soft">
-              Archivada
+              Archivado
             </Chip>
           )}
         </button>
@@ -266,28 +266,28 @@ function NodoEstancia({
             <Plus className="h-4 w-4" />
             Estantería
           </Button>
-          {esAdmin && estancia.archivada && (
+          {esAdmin && pasillo.archivada && (
             <Button
               variant="ghost"
               size="sm"
-              onPress={() => onRestaurar("estancia", estancia.id)}
+              onPress={() => onRestaurar("pasillo", pasillo.id)}
             >
               <ArchiveRestore className="h-4 w-4" />
               Restaurar
             </Button>
           )}
-          {esAdmin && !estancia.archivada && (
+          {esAdmin && !pasillo.archivada && (
             <Button
               variant="ghost"
               size="sm"
               isIconOnly
               className="text-muted"
-              aria-label="Eliminar estancia"
+              aria-label="Eliminar pasillo"
               onPress={() =>
                 onBorrar({
-                  tipo: "estancia",
-                  id: estancia.id,
-                  etiqueta: estancia.codigo,
+                  tipo: "pasillo",
+                  id: pasillo.id,
+                  etiqueta: pasillo.codigo,
                 })
               }
             >
@@ -299,7 +299,7 @@ function NodoEstancia({
 
       {abierta && (
         <div className="flex flex-col gap-2 border-t p-3">
-          {estancia.estanterias.map((estanteria) => (
+          {pasillo.estanterias.map((estanteria) => (
             <NodoEstanteria
               key={estanteria.id}
               estanteria={estanteria}
@@ -310,7 +310,7 @@ function NodoEstancia({
               onRestaurar={onRestaurar}
             />
           ))}
-          {estancia.estanterias.length === 0 && (
+          {pasillo.estanterias.length === 0 && (
             <p className="text-sm text-muted">Sin estanterías.</p>
           )}
         </div>
@@ -449,8 +449,8 @@ function DialogosEstructura({
             method: "POST",
             body: JSON.stringify({ nombre: campo("nombre"), descripcion: campo("descripcion") || null }),
           });
-        case "estancia":
-          return apiFetch("/api/estancias", {
+        case "pasillo":
+          return apiFetch("/api/pasillos", {
             method: "POST",
             body: JSON.stringify({
               almacenId: dialogo.almacenId,
@@ -462,7 +462,7 @@ function DialogosEstructura({
           return apiFetch("/api/estanterias", {
             method: "POST",
             body: JSON.stringify({
-              estanciaId: dialogo.estanciaId,
+              pasilloId: dialogo.pasilloId,
               codigo: campo("codigo"),
               descripcion: campo("descripcion") || null,
             }),
@@ -514,7 +514,7 @@ function DialogosEstructura({
 
   const titulos: Record<string, string> = {
     almacen: "Nuevo almacén",
-    estancia: "Nueva estancia",
+    pasillo: "Nuevo pasillo",
     estanteria: "Nueva estantería",
     ubicacion: "Nueva ubicación",
     lote: "Generar ubicaciones en lote",
@@ -550,11 +550,11 @@ function DialogosEstructura({
                   {dialogo.tipo === "csv" && (
                     <p className="text-sm text-muted">
                       Cabecera esperada:
-                      almacen;estancia_codigo;estancia_nombre;estanteria;ubicacion;nivel;hueco
+                      almacen;pasillo_codigo;pasillo_nombre;estanteria;ubicacion;nivel;hueco
                     </p>
                   )}
 
-                  {(dialogo.tipo === "almacen" || dialogo.tipo === "estancia") && (
+                  {(dialogo.tipo === "almacen" || dialogo.tipo === "pasillo") && (
                     <TextField
                       fullWidth
                       value={campo("nombre")}
@@ -564,7 +564,7 @@ function DialogosEstructura({
                       <Input />
                     </TextField>
                   )}
-                  {(dialogo.tipo === "estancia" ||
+                  {(dialogo.tipo === "pasillo" ||
                     dialogo.tipo === "estanteria" ||
                     dialogo.tipo === "ubicacion") && (
                     <TextField
@@ -644,7 +644,7 @@ function DialogosEstructura({
                           rows={10}
                           className="font-mono text-xs"
                           placeholder={
-                            "almacen;estancia_codigo;estancia_nombre;estanteria;ubicacion;nivel;hueco\nAlmacén Central;Z1;Zona 1;E01;E01-N1-H1;1;1"
+                            "almacen;pasillo_codigo;pasillo_nombre;estanteria;ubicacion;nivel;hueco\nAlmacén Central;Z1;Zona 1;E01;E01-N1-H1;1;1"
                           }
                         />
                       </TextField>

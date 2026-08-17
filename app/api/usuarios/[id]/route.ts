@@ -15,6 +15,7 @@ const schema = z.object({
 
 type Contexto = { params: Promise<{ id: string }> };
 
+/** Edición completa del usuario: nombre, NBI, email, contraseña, rol y estado. */
 export const PATCH = conManejadorErrores(async (peticion: Request, { params }: Contexto) => {
   const sesion = await requireSesion(["ADMIN"]);
   const { id } = await params;
@@ -22,6 +23,9 @@ export const PATCH = conManejadorErrores(async (peticion: Request, { params }: C
 
   if (id === sesion.user.id && resto.activo === false) {
     throw new ApiError(400, "No puedes desactivar tu propio usuario");
+  }
+  if (id === sesion.user.id && resto.rol && resto.rol !== "ADMIN") {
+    throw new ApiError(400, "No puedes quitarte a ti mismo el rol de administrador");
   }
 
   const usuario = await prisma.usuario.update({
@@ -33,4 +37,41 @@ export const PATCH = conManejadorErrores(async (peticion: Request, { params }: C
     select: { id: true, nombre: true, nbi: true, email: true, rol: true, activo: true },
   });
   return NextResponse.json({ usuario });
+});
+
+/**
+ * Eliminación de un usuario (solo ADMIN).
+ *
+ * Si el usuario ya ha participado en recuentos o incidencias NO se borra: se
+ * desactiva. Borrarlo destruiría la trazabilidad (quién contó y firmó cada
+ * ubicación), que es justo lo que da valor al inventario. Si no tiene ningún
+ * dato asociado, se elimina de verdad.
+ */
+export const DELETE = conManejadorErrores(async (_peticion: Request, { params }: Contexto) => {
+  const sesion = await requireSesion(["ADMIN"]);
+  const { id } = await params;
+
+  if (id === sesion.user.id) {
+    throw new ApiError(400, "No puedes eliminar tu propio usuario");
+  }
+
+  const usuario = await prisma.usuario.findUnique({ where: { id } });
+  if (!usuario) throw new ApiError(404, "El usuario no existe");
+
+  const [recuentos, abiertas, resueltas] = await Promise.all([
+    prisma.recuento.count({ where: { operarioId: id } }),
+    prisma.incidencia.count({ where: { abiertaPorId: id } }),
+    prisma.incidencia.count({ where: { resueltaPorId: id } }),
+  ]);
+  const datos = recuentos + abiertas + resueltas;
+
+  if (datos > 0) {
+    // Conserva la trazabilidad: el usuario deja de poder entrar, pero su
+    // nombre y NBI siguen figurando en los recuentos que firmó.
+    await prisma.usuario.update({ where: { id }, data: { activo: false } });
+    return NextResponse.json({ ok: true, accion: "desactivado", recuentos });
+  }
+
+  await prisma.usuario.delete({ where: { id } });
+  return NextResponse.json({ ok: true, accion: "eliminado", recuentos: 0 });
 });

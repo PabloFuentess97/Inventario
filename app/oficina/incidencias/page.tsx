@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, CheckCircle2, MapPin } from "lucide-react";
+import { AlertTriangle, Archive, CheckCircle2, MapPin } from "lucide-react";
 import { Button, Card, Chip, Input, Label, Modal, Tabs, TextArea, TextField } from "@heroui/react";
 import { toast } from "@/lib/toast";
 import { apiFetch } from "@/lib/cliente-api";
@@ -11,6 +11,7 @@ import { formatearCantidad, formatearFecha } from "@/lib/utils";
 interface Incidencia {
   id: string;
   estado: "ABIERTA" | "RESUELTA";
+  archivada: boolean;
   fotoUrl: string | null;
   notaOperario: string | null;
   descripcionResolucion: string | null;
@@ -27,7 +28,7 @@ interface Incidencia {
     recuento: {
       ubicacion: {
         codigo: string;
-        estanteria: { codigo: string; estancia: { nombre: string; almacen: { nombre: string } } };
+        estanteria: { codigo: string; pasillo: { nombre: string; almacen: { nombre: string } } };
       };
     };
   };
@@ -44,6 +45,29 @@ export default function PaginaIncidencias() {
   const [descripcion, setDescripcion] = useState("");
   const [nota, setNota] = useState("");
   const queryClient = useQueryClient();
+
+  // Solo el administrador puede archivar incidencias
+  const { data: yo } = useQuery({
+    queryKey: ["yo"],
+    queryFn: () => apiFetch<{ rol: string }>("/api/yo"),
+    staleTime: 5 * 60_000,
+  });
+  const esAdmin = yo?.rol === "ADMIN";
+
+  const archivar = useMutation({
+    mutationFn: (id: string) =>
+      apiFetch(`/api/incidencias/${id}/archivar`, {
+        method: "POST",
+        body: JSON.stringify({ archivada: true }),
+      }),
+    onSuccess: () => {
+      toast.success("Incidencia archivada", {
+        description: "Se conserva con su línea contada, pero deja de aparecer en el panel.",
+      });
+      queryClient.invalidateQueries({ queryKey: ["incidencias"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
 
   const { data, isLoading } = useQuery({
     queryKey: ["incidencias", filtro],
@@ -145,7 +169,7 @@ export default function PaginaIncidencias() {
                     )}
                   </div>
                   <p className="text-xs text-muted">
-                    {u.estanteria.estancia.almacen.nombre} · {u.estanteria.estancia.nombre} ·{" "}
+                    {u.estanteria.pasillo.almacen.nombre} · {u.estanteria.pasillo.nombre} ·{" "}
                     {u.estanteria.codigo}
                   </p>
                   <p className="mt-2 text-sm">
@@ -180,6 +204,17 @@ export default function PaginaIncidencias() {
                       }}
                     >
                       Identificar y resolver
+                    </Button>
+                  )}
+                  {esAdmin && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="mt-3 ml-2 text-muted"
+                      onPress={() => archivar.mutate(inc.id)}
+                    >
+                      <Archive className="h-4 w-4" />
+                      Archivar
                     </Button>
                   )}
                 </div>

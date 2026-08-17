@@ -13,7 +13,7 @@ export interface UsuarioSesion {
 const ContextoUsuario = createContext<UsuarioSesion | null>(null);
 
 /** Cada cuánto se vuelve a descargar la estructura del almacén (con conexión). */
-const INTERVALO_ESTRUCTURA_MS = 2 * 60_000;
+const INTERVALO_ESTRUCTURA_MS = 60_000;
 
 export function useUsuario(): UsuarioSesion {
   const usuario = useContext(ContextoUsuario);
@@ -38,7 +38,7 @@ export function ProveedorUsuario({
     void precargarEstructura();
 
     // Refresca la estructura de forma periódica y al recuperar conexión, para
-    // que las estancias/estanterías/ubicaciones que cree la oficina aparezcan
+    // que las pasillos/estanterías/ubicaciones que cree la oficina aparezcan
     // en el móvil sin tener que cerrar y abrir la aplicación.
     const intervalo = setInterval(() => {
       if (navigator.onLine) void precargarEstructura();

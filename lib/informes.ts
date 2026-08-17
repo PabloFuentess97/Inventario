@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 /** Fila plana del informe de recuento, lista para exportar al ERP. */
 export interface FilaInforme {
   almacen: string;
-  estancia: string;
+  pasillo: string;
   estanteria: string;
   ubicacion: string;
   descripcion: string;
@@ -18,7 +18,7 @@ export interface FilaInforme {
 
 export const COLUMNAS_INFORME: { clave: keyof FilaInforme; titulo: string; ancho: number }[] = [
   { clave: "almacen", titulo: "Almacén", ancho: 22 },
-  { clave: "estancia", titulo: "Estancia", ancho: 22 },
+  { clave: "pasillo", titulo: "Pasillo", ancho: 22 },
   { clave: "estanteria", titulo: "Estantería", ancho: 14 },
   { clave: "ubicacion", titulo: "Ubicación", ancho: 16 },
   { clave: "descripcion", titulo: "Descripción del artículo", ancho: 45 },
@@ -45,11 +45,13 @@ export async function obtenerFilasInforme(opciones: {
     where: {
       estado: "ACTIVA",
       recuento: {
+        // Un recuento archivado (descartado por el administrador) no se exporta
+        archivado: false,
         ...(opciones.soloFinalizados ? { estado: "FINALIZADO" } : {}),
         ubicacion: {
           ...(opciones.estanteriaId ? { estanteriaId: opciones.estanteriaId } : {}),
           ...(opciones.almacenId
-            ? { estanteria: { estancia: { almacenId: opciones.almacenId } } }
+            ? { estanteria: { pasillo: { almacenId: opciones.almacenId } } }
             : {}),
         },
       },
@@ -61,7 +63,7 @@ export async function obtenerFilasInforme(opciones: {
         include: {
           operario: { select: { nombre: true, nbi: true } },
           ubicacion: {
-            include: { estanteria: { include: { estancia: { include: { almacen: true } } } } },
+            include: { estanteria: { include: { pasillo: { include: { almacen: true } } } } },
           },
         },
       },
@@ -73,8 +75,8 @@ export async function obtenerFilasInforme(opciones: {
     const u = l.recuento.ubicacion;
     const fecha = l.recuento.finalizadoEn ?? l.recuento.iniciadoEn;
     return {
-      almacen: u.estanteria.estancia.almacen.nombre,
-      estancia: `${u.estanteria.estancia.codigo} · ${u.estanteria.estancia.nombre}`,
+      almacen: u.estanteria.pasillo.almacen.nombre,
+      pasillo: `${u.estanteria.pasillo.codigo} · ${u.estanteria.pasillo.nombre}`,
       estanteria: u.estanteria.codigo,
       ubicacion: u.codigo,
       descripcion: l.descripcionArticulo || "(sin descripción)",

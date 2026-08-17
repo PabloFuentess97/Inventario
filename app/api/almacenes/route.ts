@@ -22,7 +22,7 @@ export const GET = conManejadorErrores(async (peticion: Request) => {
     where: soloActivos,
     orderBy: { nombre: "asc" },
     include: {
-      estancias: {
+      pasillos: {
         where: soloActivos,
         orderBy: { codigo: "asc" },
         include: {

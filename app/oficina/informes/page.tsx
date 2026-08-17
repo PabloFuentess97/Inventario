@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 interface Almacen {
   id: string;
   nombre: string;
-  estancias: { id: string; nombre: string; estanterias: { id: string; codigo: string }[] }[];
+  pasillos: { id: string; nombre: string; estanterias: { id: string; codigo: string }[] }[];
 }
 
 /**
@@ -31,7 +31,7 @@ export default function PaginaInformes() {
 
   const estanterias =
     data?.almacenes.flatMap((a) =>
-      a.estancias.flatMap((e) =>
+      a.pasillos.flatMap((e) =>
         e.estanterias.map((est) => ({ ...est, etiqueta: `${a.nombre} · ${e.nombre} · ${est.codigo}` }))
       )
     ) ?? [];
@@ -108,7 +108,7 @@ export default function PaginaInformes() {
         <Card.Header>
           <Card.Title>Descargar</Card.Title>
           <Card.Description>
-            El informe incluye ubicación, estantería, estancia, artículo, cantidad, unidad,
+            El informe incluye ubicación, estantería, pasillo, artículo, cantidad, unidad,
             operario, NBI, fecha y estado.
           </Card.Description>
         </Card.Header>

@@ -7,7 +7,7 @@ import { Button, Input, Label, Modal, TextField } from "@heroui/react";
 import { toast } from "@/lib/toast";
 import { apiFetch } from "@/lib/cliente-api";
 
-export type TipoEstructura = "almacen" | "estancia" | "estanteria" | "ubicacion";
+export type TipoEstructura = "almacen" | "pasillo" | "estanteria" | "ubicacion";
 
 export interface ObjetivoBorrado {
   tipo: TipoEstructura;
@@ -18,16 +18,24 @@ export interface ObjetivoBorrado {
 
 const RECURSOS: Record<TipoEstructura, string> = {
   almacen: "almacenes",
-  estancia: "estancias",
+  pasillo: "pasillos",
   estanteria: "estanterias",
   ubicacion: "ubicaciones",
 };
 
 const NOMBRES: Record<TipoEstructura, string> = {
   almacen: "almacén",
-  estancia: "estancia",
+  pasillo: "pasillo",
   estanteria: "estantería",
   ubicacion: "ubicación",
+};
+
+/** Género gramatical de cada tipo, para que los mensajes concuerden. */
+const GENERO: Record<TipoEstructura, "m" | "f"> = {
+  almacen: "m",
+  pasillo: "m",
+  estanteria: "f",
+  ubicacion: "f",
 };
 
 /**
@@ -71,12 +79,17 @@ export function DialogoBorrarEstructura({
         { method: "DELETE" }
       ),
     onSuccess: (r) => {
+      const nombre = cap(NOMBRES[objetivo!.tipo]);
+      // Concordancia: almacén y pasillo son masculinos; estantería y ubicación, femeninas
+      const f = GENERO[objetivo!.tipo] === "f";
       if (r.accion === "archivado") {
-        toast.success(`${cap(NOMBRES[objetivo!.tipo])} archivada`, {
-          description: `Se conservan ${r.recuentos} recuentos con sus fotos e informes. Puedes restaurarla cuando quieras.`,
+        toast.success(`${nombre} ${f ? "archivada" : "archivado"}`, {
+          description: `Se conservan ${r.recuentos} recuentos con sus fotos e informes. Puedes restaurar${
+            f ? "la" : "lo"
+          } cuando quieras.`,
         });
       } else {
-        toast.success(`${cap(NOMBRES[objetivo!.tipo])} eliminada`);
+        toast.success(`${nombre} ${f ? "eliminada" : "eliminado"}`);
       }
       onCerrar();
       onExito();
@@ -122,7 +135,7 @@ export function DialogoBorrarEstructura({
                       <p>
                         No se borrará ningún dato: se <b>archivará</b>. Desaparecerá de la oficina
                         y de los móviles de los operarios, pero los recuentos, las fotos y los
-                        informes seguirán disponibles. Podrás restaurarla cuando quieras.
+                        informes seguirán disponibles, y podrás restaurarlo cuando quieras.
                       </p>
                     </div>
                   ) : (

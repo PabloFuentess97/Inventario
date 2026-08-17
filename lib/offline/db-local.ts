@@ -19,9 +19,9 @@ export interface UbicacionLocal {
   descripcion: string | null;
   estanteriaId: string;
   estanteriaCodigo: string;
-  estanciaId: string;
-  estanciaCodigo: string;
-  estanciaNombre: string;
+  pasilloId: string;
+  pasilloCodigo: string;
+  pasilloNombre: string;
   almacenId: string;
   almacenNombre: string;
   /** true si el servidor informó de un recuento EN_PROGRESO de otro operario. */
@@ -32,6 +32,8 @@ export interface UnidadLocal {
   id: string;
   codigo: string;
   nombre: string;
+  /** Se asigna sola al crear una línea (el operario puede cambiarla). */
+  porDefecto: boolean;
 }
 
 export interface RecuentoLocal {
@@ -118,7 +120,7 @@ class BaseLocal extends Dexie {
   constructor() {
     super("inventario-local");
     this.version(1).stores({
-      ubicaciones: "id, codigo, estanteriaId, estanciaId",
+      ubicaciones: "id, codigo, estanteriaId, pasilloId",
       unidades: "id, codigo",
       recuentos: "id, ubicacionId, estado",
       lineas: "id, recuentoId, updatedAt",

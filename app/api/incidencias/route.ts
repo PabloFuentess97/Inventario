@@ -9,8 +9,13 @@ export const GET = conManejadorErrores(async (peticion: Request) => {
   const url = new URL(peticion.url);
   const estado = url.searchParams.get("estado");
 
+  const incluirArchivadas = url.searchParams.get("incluirArchivadas") === "1";
+
   const incidencias = await prisma.incidencia.findMany({
-    where: estado === "ABIERTA" || estado === "RESUELTA" ? { estado } : undefined,
+    where: {
+      ...(incluirArchivadas ? {} : { archivada: false }),
+      ...(estado === "ABIERTA" || estado === "RESUELTA" ? { estado } : {}),
+    },
     orderBy: { createdAt: "desc" },
     include: {
       abiertaPor: { select: { nombre: true, nbi: true } },
@@ -21,7 +26,7 @@ export const GET = conManejadorErrores(async (peticion: Request) => {
           recuento: {
             include: {
               ubicacion: {
-                include: { estanteria: { include: { estancia: { include: { almacen: true } } } } },
+                include: { estanteria: { include: { pasillo: { include: { almacen: true } } } } },
               },
             },
           },

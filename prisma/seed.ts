@@ -2,7 +2,7 @@
  * Seed de datos de ejemplo:
  *  - Usuarios de prueba (admin, oficinista, operario)
  *  - Catálogo de unidades de medida
- *  - Un almacén con estancias, estanterías y ubicaciones
+ *  - Un almacén con pasillos, estanterías y ubicaciones
  *
  * Ejecutar con: npm run db:seed
  */
@@ -31,7 +31,8 @@ async function main() {
 
   // ── Unidades de medida ──────────────────────────────────────────────────────
   const unidades = [
-    { codigo: "UD", nombre: "Unidades" },
+    // "Unidades" es la que se asigna automáticamente al contar
+    { codigo: "UD", nombre: "Unidades", porDefecto: true },
     { codigo: "M", nombre: "Metros" },
     { codigo: "KG", nombre: "Kilogramos" },
     { codigo: "CAJA", nombre: "Cajas" },
@@ -41,8 +42,8 @@ async function main() {
   for (const um of unidades) {
     await prisma.unidadMedida.upsert({
       where: { codigo: um.codigo },
-      update: {},
-      create: um,
+      update: { porDefecto: um.porDefecto ?? false },
+      create: { ...um, porDefecto: um.porDefecto ?? false },
     });
   }
 
@@ -53,7 +54,7 @@ async function main() {
       data: {
         nombre: "Almacén Central",
         descripcion: "Almacén principal de ejemplo",
-        estancias: {
+        pasillos: {
           create: [
             {
               codigo: "Z1",

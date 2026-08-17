@@ -1,18 +1,20 @@
 "use client";
 
-import { use } from "react";
+import { use, useState } from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, ArrowLeft, RotateCcw } from "lucide-react";
+import { Archive, ArchiveRestore, AlertTriangle, ArrowLeft, RotateCcw } from "lucide-react";
 import { Button, Card, Chip, Table } from "@heroui/react";
 import { toast } from "@/lib/toast";
 import { apiFetch } from "@/lib/cliente-api";
 import { formatearCantidad, formatearFecha } from "@/lib/utils";
+import { DialogoConfirmar } from "@/components/oficina/dialogo-confirmar";
 
 interface Detalle {
   recuento: {
     id: string;
     estado: string;
+    archivado: boolean;
     iniciadoEn: string;
     finalizadoEn: string | null;
     firmaNombre: string | null;
@@ -20,7 +22,7 @@ interface Detalle {
     operario: { nombre: string; nbi: string };
     ubicacion: {
       codigo: string;
-      estanteria: { codigo: string; estancia: { nombre: string; almacen: { nombre: string } } };
+      estanteria: { codigo: string; pasillo: { nombre: string; almacen: { nombre: string } } };
     };
     lineas: {
       id: string;
@@ -39,10 +41,37 @@ interface Detalle {
 export default function PaginaDetalleRecuento({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const queryClient = useQueryClient();
+  const [confirmandoArchivar, setConfirmandoArchivar] = useState(false);
+
+  // Solo el administrador puede archivar (borrado lógico) un recuento
+  const { data: yo } = useQuery({
+    queryKey: ["yo"],
+    queryFn: () => apiFetch<{ rol: string }>("/api/yo"),
+    staleTime: 5 * 60_000,
+  });
+  const esAdmin = yo?.rol === "ADMIN";
 
   const { data, isLoading } = useQuery({
     queryKey: ["recuento", id],
     queryFn: () => apiFetch<Detalle>(`/api/recuentos/${id}`),
+  });
+
+  const archivar = useMutation({
+    mutationFn: (archivado: boolean) =>
+      apiFetch(`/api/recuentos/${id}/archivar`, {
+        method: "POST",
+        body: JSON.stringify({ archivado }),
+      }),
+    onSuccess: (_r, archivado) => {
+      toast.success(
+        archivado
+          ? "Recuento archivado: se conserva, pero deja de contar en informes y listados"
+          : "Recuento restaurado"
+      );
+      setConfirmandoArchivar(false);
+      queryClient.invalidateQueries({ queryKey: ["recuento", id] });
+    },
+    onError: (e: Error) => toast.error(e.message),
   });
 
   const reabrir = useMutation({
@@ -76,18 +105,42 @@ export default function PaginaDetalleRecuento({ params }: { params: Promise<{ id
           <div>
             <h1 className="text-2xl font-bold tracking-tight">{r.ubicacion.codigo}</h1>
             <p className="text-sm text-muted">
-              {r.ubicacion.estanteria.estancia.almacen.nombre} ·{" "}
-              {r.ubicacion.estanteria.estancia.nombre} · {r.ubicacion.estanteria.codigo}
+              {r.ubicacion.estanteria.pasillo.almacen.nombre} ·{" "}
+              {r.ubicacion.estanteria.pasillo.nombre} · {r.ubicacion.estanteria.codigo}
             </p>
           </div>
         </div>
-        {r.estado === "FINALIZADO" && (
-          <Button variant="outline" onPress={() => reabrir.mutate()} isDisabled={reabrir.isPending}>
-            <RotateCcw className="h-4 w-4" />
-            Reabrir recuento
-          </Button>
-        )}
+        <div className="flex flex-wrap gap-2">
+          {r.estado === "FINALIZADO" && !r.archivado && (
+            <Button variant="outline" onPress={() => reabrir.mutate()} isDisabled={reabrir.isPending}>
+              <RotateCcw className="h-4 w-4" />
+              Reabrir recuento
+            </Button>
+          )}
+          {esAdmin && !r.archivado && (
+            <Button variant="ghost" onPress={() => setConfirmandoArchivar(true)}>
+              <Archive className="h-4 w-4" />
+              Archivar
+            </Button>
+          )}
+          {esAdmin && r.archivado && (
+            <Button variant="ghost" onPress={() => archivar.mutate(false)}>
+              <ArchiveRestore className="h-4 w-4" />
+              Restaurar
+            </Button>
+          )}
+        </div>
       </div>
+
+      {r.archivado && (
+        <div className="flex items-start gap-2 rounded-lg border border-warning/40 bg-warning-soft p-3 text-sm text-warning-soft-foreground">
+          <Archive className="mt-0.5 h-4 w-4 shrink-0" />
+          <p>
+            Recuento archivado: no aparece en los listados ni en los informes, pero sus datos
+            se conservan. El administrador puede restaurarlo.
+          </p>
+        </div>
+      )}
 
       <Card>
         <Card.Content className="grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-4">
@@ -195,6 +248,22 @@ export default function PaginaDetalleRecuento({ params }: { params: Promise<{ id
           </Table>
         </Card.Content>
       </Card>
+
+      <DialogoConfirmar
+        abierto={confirmandoArchivar}
+        titulo="Archivar recuento"
+        peligroso
+        textoConfirmar="Archivar"
+        cargando={archivar.isPending}
+        mensaje={
+          <>
+            El recuento y sus líneas <b>se conservan</b>, pero dejarán de aparecer en los
+            listados y de exportarse en los informes. Podrás restaurarlo cuando quieras.
+          </>
+        }
+        onConfirmar={() => archivar.mutate(true)}
+        onCerrar={() => setConfirmandoArchivar(false)}
+      />
     </div>
   );
 }

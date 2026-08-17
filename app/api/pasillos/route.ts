@@ -12,6 +12,13 @@ const schema = z.object({
 export const POST = conManejadorErrores(async (peticion: Request) => {
   await requireSesion(["OFICINISTA", "ADMIN"]);
   const datos = schema.parse(await peticion.json());
-  const estancia = await prisma.estancia.create({ data: datos });
-  return NextResponse.json({ estancia }, { status: 201 });
+
+  const pasillo = await prisma.$transaction(async (tx) => {
+    // Si el almacén estaba archivado, se reactiva: al añadirle un pasillo
+    // se vuelve a usar, y si no el pasillo nuevo sería invisible.
+    await tx.almacen.update({ where: { id: datos.almacenId }, data: { archivada: false } });
+    return tx.pasillo.create({ data: datos });
+  });
+
+  return NextResponse.json({ pasillo }, { status: 201 });
 });

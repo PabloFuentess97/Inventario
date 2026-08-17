@@ -1,7 +1,7 @@
 /**
  * Prueba del borrado seguro de estructura (archivado vs eliminación).
  *
- * Verifica lo importante: que archivar una estancia CON recuentos no pierde
+ * Verifica lo importante: que archivar un pasillo CON recuentos no pierde
  * ningún dato (recuentos, líneas, fotos siguen ahí y el informe los exporta),
  * que desaparece de lo que ve el operario, y que restaurar la devuelve.
  *
@@ -27,7 +27,7 @@ async function main() {
   const almacen = await prisma.almacen.create({
     data: {
       nombre: `${MARCA} Almacén`,
-      estancias: {
+      pasillos: {
         create: {
           codigo: "PZ1",
           nombre: "Zona de prueba",
@@ -37,10 +37,10 @@ async function main() {
         },
       },
     },
-    include: { estancias: { include: { estanterias: { include: { ubicaciones: true } } } } },
+    include: { pasillos: { include: { estanterias: { include: { ubicaciones: true } } } } },
   });
-  const estancia = almacen.estancias[0];
-  const estanteria = estancia.estanterias[0];
+  const pasillo = almacen.pasillos[0];
+  const estanteria = pasillo.estanterias[0];
   const ubicacion = estanteria.ubicaciones[0];
 
   // Recuento finalizado con una línea y una "foto"
@@ -65,10 +65,10 @@ async function main() {
     },
   });
 
-  comprobar((await contarRecuentos("estancia", estancia.id)) === 1, "La estancia tiene 1 recuento");
+  comprobar((await contarRecuentos("pasillo", pasillo.id)) === 1, "El pasillo tiene 1 recuento");
 
   // ── Con datos → debe ARCHIVAR, no borrar ──
-  const r1 = await borrarEstructura("estancia", estancia.id);
+  const r1 = await borrarEstructura("pasillo", pasillo.id);
   comprobar(r1.accion === "archivado", "Con recuentos: se archiva (no se elimina)");
 
   const trasArchivar = await prisma.recuento.findUnique({
@@ -102,19 +102,19 @@ async function main() {
   );
 
   // ── Restaurar ──
-  await restaurarEstructura("estancia", estancia.id);
+  await restaurarEstructura("pasillo", pasillo.id);
   const restaurada = await prisma.ubicacion.findUnique({ where: { id: ubicacion.id } });
   comprobar(restaurada?.archivada === false, "Restaurar devuelve la ubicación a los operarios");
 
   // ── Sin datos → debe ELIMINAR de verdad ──
-  const vacia = await prisma.estancia.create({
+  const vacia = await prisma.pasillo.create({
     data: { almacenId: almacen.id, codigo: "PZ2", nombre: "Zona vacía" },
   });
-  const r2 = await borrarEstructura("estancia", vacia.id);
+  const r2 = await borrarEstructura("pasillo", vacia.id);
   comprobar(r2.accion === "eliminado", "Sin recuentos: se elimina de verdad");
   comprobar(
-    (await prisma.estancia.findUnique({ where: { id: vacia.id } })) === null,
-    "La estancia vacía ya no está en la base de datos"
+    (await prisma.pasillo.findUnique({ where: { id: vacia.id } })) === null,
+    "El pasillo vacío ya no está en la base de datos"
   );
 
   // ── Limpieza ──

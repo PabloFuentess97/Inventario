@@ -49,6 +49,7 @@ export async function generarGruposSimilitud(umbral?: number): Promise<number> {
       WHERE "estado" = 'ACTIVA'
         AND "esIncidencia" = false
         AND length(trim("descripcionArticulo")) >= 3
+        AND "recuentoId" IN (SELECT "id" FROM "recuentos" WHERE "archivado" = false)
         ${
           lineasDecididas.length > 0
             ? Prisma.sql`AND "id" NOT IN (${Prisma.join(lineasDecididas)})`
@@ -106,6 +107,7 @@ export async function generarGruposSimilitud(umbral?: number): Promise<number> {
         descripcionArticulo: { in: descripciones },
         estado: "ACTIVA",
         esIncidencia: false,
+        recuento: { archivado: false },
         ...(lineasDecididas.length > 0 ? { id: { notIn: lineasDecididas } } : {}),
       },
       select: { id: true },

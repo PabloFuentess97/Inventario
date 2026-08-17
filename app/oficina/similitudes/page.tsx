@@ -20,7 +20,7 @@ interface Grupo {
       cantidad: string;
       unidadMedida: { codigo: string } | null;
       recuento: {
-        ubicacion: { codigo: string; estanteria: { codigo: string; estancia: { nombre: string } } };
+        ubicacion: { codigo: string; estanteria: { codigo: string; pasillo: { nombre: string } } };
       };
     };
   }[];
@@ -162,7 +162,7 @@ export default function PaginaSimilitudes() {
                   <span className="font-medium">{linea.descripcionArticulo}</span>
                   <span className="text-muted">
                     {formatearCantidad(linea.cantidad)} {linea.unidadMedida?.codigo ?? ""} ·{" "}
-                    {linea.recuento.ubicacion.estanteria.estancia.nombre} ·{" "}
+                    {linea.recuento.ubicacion.estanteria.pasillo.nombre} ·{" "}
                     {linea.recuento.ubicacion.codigo}
                   </span>
                 </div>

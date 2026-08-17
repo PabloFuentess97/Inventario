@@ -15,7 +15,7 @@ export const GET = conManejadorErrores(async (_peticion: Request, { params }: Co
     include: {
       operario: { select: { nombre: true, nbi: true } },
       ubicacion: {
-        include: { estanteria: { include: { estancia: { include: { almacen: true } } } } },
+        include: { estanteria: { include: { pasillo: { include: { almacen: true } } } } },
       },
       lineas: {
         orderBy: { createdAt: "asc" },

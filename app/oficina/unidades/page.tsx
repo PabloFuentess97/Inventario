@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Star, Trash2 } from "lucide-react";
 import { Button, Card, Chip, Input, Label, Table, TextField } from "@heroui/react";
 import { toast } from "@/lib/toast";
 import { apiFetch } from "@/lib/cliente-api";
@@ -12,6 +12,8 @@ interface Unidad {
   codigo: string;
   nombre: string;
   activa: boolean;
+  /** Unidad que se asigna sola al crear una línea de recuento. */
+  porDefecto: boolean;
 }
 
 /** Catálogo editable de unidades de medida (UD, M, KG, CAJA, PALLET…). */
@@ -37,6 +39,21 @@ export default function PaginaUnidades() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const marcarPorDefecto = useMutation({
+    mutationFn: (id: string) =>
+      apiFetch(`/api/unidades/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ porDefecto: true }),
+      }),
+    onSuccess: () => {
+      toast.success("Unidad por defecto actualizada", {
+        description: "Es la que se asignará sola al contar (el operario puede cambiarla).",
+      });
+      queryClient.invalidateQueries({ queryKey: ["unidades"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const borrar = useMutation({
     mutationFn: (id: string) => apiFetch(`/api/unidades/${id}`, { method: "DELETE" }),
     onSuccess: (r: unknown) => {
@@ -54,6 +71,11 @@ export default function PaginaUnidades() {
   return (
     <div className="flex max-w-2xl flex-col gap-6">
       <h1 className="text-2xl font-bold tracking-tight">Unidades de medida</h1>
+
+      <p className="text-sm text-muted">
+        La unidad marcada con la estrella se asigna automáticamente a cada línea nueva; el
+        operario siempre puede cambiarla al contar.
+      </p>
 
       <Card>
         <Card.Header>
@@ -90,6 +112,7 @@ export default function PaginaUnidades() {
                   <Table.Column isRowHeader>Código</Table.Column>
                   <Table.Column>Nombre</Table.Column>
                   <Table.Column>Estado</Table.Column>
+                  <Table.Column>Por defecto</Table.Column>
                   <Table.Column aria-label="Acciones"> </Table.Column>
                 </Table.Header>
                 <Table.Body>
@@ -109,11 +132,30 @@ export default function PaginaUnidades() {
                         )}
                       </Table.Cell>
                       <Table.Cell>
+                        {u.porDefecto ? (
+                          <Chip size="sm" color="accent" variant="soft">
+                            <Star className="h-3 w-3" />
+                            Por defecto
+                          </Chip>
+                        ) : (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            isDisabled={!u.activa || marcarPorDefecto.isPending}
+                            onPress={() => marcarPorDefecto.mutate(u.id)}
+                          >
+                            <Star className="h-4 w-4" />
+                            Marcar
+                          </Button>
+                        )}
+                      </Table.Cell>
+                      <Table.Cell>
                         <Button
                           variant="ghost"
                           isIconOnly
                           size="sm"
                           className="text-muted"
+                          isDisabled={u.porDefecto}
                           onPress={() => borrar.mutate(u.id)}
                           aria-label={`Eliminar ${u.nombre}`}
                         >

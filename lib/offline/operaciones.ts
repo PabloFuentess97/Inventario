@@ -25,7 +25,7 @@ export async function precargarEstructura(): Promise<boolean> {
     if (!respuesta.ok) return false;
     const datos = (await respuesta.json()) as {
       ubicaciones: UbicacionLocal[];
-      unidades: { id: string; codigo: string; nombre: string }[];
+      unidades: { id: string; codigo: string; nombre: string; porDefecto: boolean }[];
     };
 
     // Ubicaciones que este dispositivo está contando ahora mismo
@@ -56,7 +56,7 @@ export async function iniciarRecuento(ubicacion: UbicacionLocal): Promise<Recuen
     id: uuid(),
     ubicacionId: ubicacion.id,
     ubicacionCodigo: ubicacion.codigo,
-    ruta: `${ubicacion.almacenNombre} · ${ubicacion.estanciaNombre} · ${ubicacion.estanteriaCodigo} · ${ubicacion.codigo}`,
+    ruta: `${ubicacion.almacenNombre} · ${ubicacion.pasilloNombre} · ${ubicacion.estanteriaCodigo} · ${ubicacion.codigo}`,
     estado: "EN_PROGRESO",
     iniciadoEn: ahora,
     finalizadoEn: null,
@@ -77,12 +77,15 @@ export async function iniciarRecuento(ubicacion: UbicacionLocal): Promise<Recuen
 /** Crea una línea vacía (se rellenará con foto/OCR/cantidad). */
 export async function crearLinea(recuentoId: string): Promise<LineaLocal> {
   const ahora = new Date().toISOString();
+  // La unidad por defecto (normalmente "Unidades") se asigna sola para que el
+  // operario no tenga que elegirla en cada línea; puede cambiarla igualmente.
+  const porDefecto = await dbLocal.unidades.filter((u) => u.porDefecto).first();
   const linea: LineaLocal = {
     id: uuid(),
     recuentoId,
     descripcionArticulo: "",
     cantidad: 0,
-    unidadMedidaId: null,
+    unidadMedidaId: porDefecto?.id ?? null,
     textoOcr: null,
     esIncidencia: false,
     estado: "ACTIVA",

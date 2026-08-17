@@ -24,7 +24,7 @@ export const GET = conManejadorErrores(async (peticion: Request) => {
               unidadMedida: true,
               recuento: {
                 include: {
-                  ubicacion: { include: { estanteria: { include: { estancia: true } } } },
+                  ubicacion: { include: { estanteria: { include: { pasillo: true } } } },
                 },
               },
             },

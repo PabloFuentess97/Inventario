@@ -12,13 +12,13 @@ import { formatearFecha } from "@/lib/utils";
 
 /**
  * Pantalla inicial del operario: elegir la ubicación donde va a contar,
- * por búsqueda de código o navegando estancia → estantería → ubicación.
+ * por búsqueda de código o navegando pasillo → estantería → ubicación.
  * Todo funciona contra IndexedDB, también sin conexión.
  */
 export default function PaginaOperario() {
   const router = useRouter();
   const [busqueda, setBusqueda] = useState("");
-  const [estanciaSel, setEstanciaSel] = useState<string | null>(null);
+  const [pasilloSel, setPasilloSel] = useState<string | null>(null);
   const [estanteriaSel, setEstanteriaSel] = useState<string | null>(null);
   const [iniciando, setIniciando] = useState(false);
   const [actualizando, setActualizando] = useState(false);
@@ -35,26 +35,26 @@ export default function PaginaOperario() {
       []
     ) ?? [];
 
-  const estancias = useMemo(() => {
+  const pasillos = useMemo(() => {
     const mapa = new Map<string, { id: string; codigo: string; nombre: string }>();
     for (const u of ubicaciones) {
-      if (!mapa.has(u.estanciaId)) {
-        mapa.set(u.estanciaId, { id: u.estanciaId, codigo: u.estanciaCodigo, nombre: u.estanciaNombre });
+      if (!mapa.has(u.pasilloId)) {
+        mapa.set(u.pasilloId, { id: u.pasilloId, codigo: u.pasilloCodigo, nombre: u.pasilloNombre });
       }
     }
     return [...mapa.values()].sort((a, b) => a.codigo.localeCompare(b.codigo));
   }, [ubicaciones]);
 
   const estanterias = useMemo(() => {
-    if (!estanciaSel) return [];
+    if (!pasilloSel) return [];
     const mapa = new Map<string, { id: string; codigo: string }>();
     for (const u of ubicaciones) {
-      if (u.estanciaId === estanciaSel && !mapa.has(u.estanteriaId)) {
+      if (u.pasilloId === pasilloSel && !mapa.has(u.estanteriaId)) {
         mapa.set(u.estanteriaId, { id: u.estanteriaId, codigo: u.estanteriaCodigo });
       }
     }
     return [...mapa.values()].sort((a, b) => a.codigo.localeCompare(b.codigo));
-  }, [ubicaciones, estanciaSel]);
+  }, [ubicaciones, pasilloSel]);
 
   const resultados = useMemo(() => {
     const texto = busqueda.trim().toLowerCase();
@@ -191,14 +191,14 @@ export default function PaginaOperario() {
             </Card>
           )}
 
-          {!estanciaSel &&
-            estancias.map((e) => (
+          {!pasilloSel &&
+            pasillos.map((e) => (
               <Card
                 key={e.id}
                 role="button"
                 tabIndex={0}
                 className="cursor-pointer transition-colors active:bg-surface-hover"
-                onClick={() => setEstanciaSel(e.id)}
+                onClick={() => setPasilloSel(e.id)}
               >
                 <Card.Content className="flex flex-row items-center justify-between">
                   <div>
@@ -210,10 +210,10 @@ export default function PaginaOperario() {
               </Card>
             ))}
 
-          {estanciaSel && !estanteriaSel && (
+          {pasilloSel && !estanteriaSel && (
             <>
-              <Button variant="ghost" size="sm" className="self-start" onPress={() => setEstanciaSel(null)}>
-                ← Estancias
+              <Button variant="ghost" size="sm" className="self-start" onPress={() => setPasilloSel(null)}>
+                ← Pasillos
               </Button>
               <div className="grid grid-cols-2 gap-2">
                 {estanterias.map((e) => (
@@ -260,7 +260,7 @@ export default function PaginaOperario() {
                 )}
               </span>
               <span className="text-xs text-muted">
-                {u.estanciaCodigo} · {u.estanteriaCodigo}
+                {u.pasilloCodigo} · {u.estanteriaCodigo}
               </span>
               {u.ocupada && <span className="text-xs font-medium text-warning">Ocupada</span>}
             </button>
@@ -275,7 +275,7 @@ export default function PaginaOperario() {
       )}
 
       {/* Ubicaciones que ya has contado: verlas o reabrirlas para recontar */}
-      {!busqueda.trim() && !estanciaSel && recuentosFinalizados.length > 0 && (
+      {!busqueda.trim() && !pasilloSel && recuentosFinalizados.length > 0 && (
         <section className="flex flex-col gap-2">
           <h2 className="text-sm font-semibold text-muted">Ubicaciones contadas</h2>
           {recuentosFinalizados.map((r) => (

@@ -62,13 +62,13 @@ model Almacen {
   /// Borrado lógico: se oculta sin perder los recuentos ya realizados.
   archivada   Boolean @default(false)
 
-  estancias Estancia[]
+  pasillos Pasillo[]
 
   @@map("almacenes")
 }
 
-/// Zona / sala / pasillo dentro del almacén.
-model Estancia {
+/// Pasillo del almacén (p. ej. "D"). Jerarquía: Almacén > Pasillo > Estantería.
+model Pasillo {
   id        String  @id @default(uuid())
   almacenId String
   codigo    String
@@ -80,21 +80,22 @@ model Estancia {
   estanterias Estanteria[]
 
   @@unique([almacenId, codigo])
-  @@map("estancias")
+  @@map("pasillos")
 }
 
+/// Estantería dentro de un pasillo (p. ej. 11, 12, 13, 14).
 model Estanteria {
   id          String  @id @default(uuid())
-  estanciaId  String
+  pasilloId   String
   codigo      String
   descripcion String?
   /// Borrado lógico: se oculta sin perder los recuentos ya realizados.
   archivada   Boolean @default(false)
 
-  estancia    Estancia    @relation(fields: [estanciaId], references: [id], onDelete: Cascade)
+  pasillo     Pasillo     @relation(fields: [pasilloId], references: [id], onDelete: Cascade)
   ubicaciones Ubicacion[]
 
-  @@unique([estanciaId, codigo])
+  @@unique([pasilloId, codigo])
   @@map("estanterias")
 }
 
@@ -129,6 +130,8 @@ model Recuento {
   finalizadoEn DateTime?
   firmaNombre  String?
   firmaNbi     String?
+  /// Borrado lógico del recuento (solo administrador). No borra las líneas.
+  archivado    Boolean        @default(false)
 
   ubicacion Ubicacion       @relation(fields: [ubicacionId], references: [id])
   operario  Usuario         @relation(fields: [operarioId], references: [id])
@@ -137,6 +140,7 @@ model Recuento {
   @@index([ubicacionId])
   @@index([operarioId])
   @@index([estado])
+  @@index([archivado])
   @@map("recuentos")
 }
 
@@ -173,6 +177,9 @@ model UnidadMedida {
   codigo String  @unique
   nombre String
   activa Boolean @default(true)
+  /// Unidad que se asigna automáticamente al contar (el operario puede cambiarla).
+  /// Un índice único parcial garantiza que solo haya una marcada.
+  porDefecto Boolean @default(false)
 
   lineas LineaRecuento[]
 
@@ -194,12 +201,15 @@ model Incidencia {
   resueltaEn            DateTime?
   createdAt             DateTime         @default(now())
   updatedAt             DateTime         @default(now())
+  /// Borrado lógico de la incidencia (solo administrador).
+  archivada             Boolean          @default(false)
 
   linea       LineaRecuento @relation(fields: [lineaRecuentoId], references: [id], onDelete: Cascade)
   abiertaPor  Usuario       @relation("IncidenciaAbiertaPor", fields: [abiertaPorId], references: [id])
   resueltaPor Usuario?      @relation("IncidenciaResueltaPor", fields: [resueltaPorId], references: [id])
 
   @@index([estado])
+  @@index([archivada])
   @@map("incidencias")
 }
 

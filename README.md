@@ -53,6 +53,17 @@ Servicios que levanta el compose:
 
 Las **fotos** se guardan en el volumen `uploads` (nunca se pierden entre despliegues). Comandos útiles: `docker compose logs -f worker`, `docker compose ps`, `docker compose down` (parar sin borrar datos), `docker compose down -v` (borrar también los volúmenes).
 
+## Estructura del almacén
+
+La jerarquía es **Almacén > Pasillo > Estantería > Ubicación**. Por ejemplo:
+`Almacén General > D > 11, 12, 13, 14`, donde las ubicaciones son los huecos
+concretos donde se cuenta. El generador en lote admite plantillas de código:
+`{EST}-N{N}-H{H}` → `11-N1-H1`, o `{N}{H}` → `11, 12, 13, 14, 21, 22…`.
+
+La **unidad de medida por defecto** (marcada con una estrella en Unidades, de
+fábrica «Unidades») se asigna sola a cada línea nueva; el operario puede
+cambiarla al contar.
+
 ## Borrado seguro de la estructura (solo administrador)
 
 Borrar estructura nunca destruye recuentos. Solo el **administrador** ve los botones de borrado, y siempre con **doble confirmación** (un aviso que explica el impacto real + escribir el código exacto del elemento):
@@ -60,7 +71,11 @@ Borrar estructura nunca destruye recuentos. Solo el **administrador** ve los bot
 - **Si tiene recuentos → se archiva.** Desaparece de la oficina y de los móviles de los operarios, pero los recuentos, las fotos y los informes siguen intactos y exportables. Es reversible: con «Ver archivadas» el administrador puede **restaurar** lo archivado.
 - **Si no tiene ningún recuento → se elimina de verdad**, junto con su contenido (limpieza real de estructura creada por error).
 
-El archivado se aplica en cascada (un almacén archiva sus estancias, estanterías y ubicaciones) para que no queden elementos huérfanos visibles en el móvil. Comprobado con `npx tsx scripts/probar-archivado.ts`.
+El archivado se aplica en cascada (un almacén archiva sus pasillos, estanterías y ubicaciones) para que no queden elementos huérfanos visibles en el móvil. Si se crea estructura nueva dentro de una rama archivada, la rama se **reactiva** automáticamente (si no, lo nuevo nunca llegaría al operario).
+
+El mismo borrado lógico se aplica a **recuentos** e **incidencias** (solo administrador): se conservan los datos, pero dejan de aparecer en listados e informes y se pueden restaurar. Los **usuarios** son la excepción: se eliminan de verdad si no tienen datos, y si ya firmaron recuentos se desactivan para no romper la trazabilidad.
+
+Comprobado con `npx tsx scripts/probar-archivado.ts` y `npx tsx scripts/probar-estructura-operario.ts`.
 
 ## Cómo la cola evita perder datos (Redis + BullMQ)
 

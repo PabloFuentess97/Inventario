@@ -16,7 +16,10 @@ export const GET = conManejadorErrores(async (peticion: Request) => {
   const pagina = Math.max(1, parseInt(url.searchParams.get("pagina") ?? "1", 10) || 1);
   const porPagina = Math.min(100, parseInt(url.searchParams.get("porPagina") ?? "25", 10) || 25);
 
+  const incluirArchivados = url.searchParams.get("incluirArchivados") === "1";
+
   const where: Prisma.RecuentoWhereInput = {
+    ...(incluirArchivados ? {} : { archivado: false }),
     ...(estado === "EN_PROGRESO" || estado === "FINALIZADO" ? { estado } : {}),
     ...(buscar
       ? {
@@ -39,7 +42,7 @@ export const GET = conManejadorErrores(async (peticion: Request) => {
       include: {
         operario: { select: { nombre: true, nbi: true } },
         ubicacion: {
-          include: { estanteria: { include: { estancia: { include: { almacen: true } } } } },
+          include: { estanteria: { include: { pasillo: { include: { almacen: true } } } } },
         },
         _count: { select: { lineas: { where: { estado: "ACTIVA" } } } },
       },
